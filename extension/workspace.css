@@ -123,8 +123,7 @@ button[data-busy="true"] { cursor: progress; }
 
 .history-actions {
   display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
+  align-items: center;
   gap: 6px;
   margin-top: 10px;
 }
@@ -178,6 +177,7 @@ th:nth-child(n+2), td:nth-child(n+2) { text-align: right; }
   font-weight: 650;
 }
 small { display: block; margin-top: 5px; }
+.history-actions small { margin-top: 0; }
 .points-preview {
   margin-top: 16px;
   border: 1px solid var(--line);
