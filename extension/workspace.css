@@ -250,7 +250,7 @@ small { display: block; margin-top: 5px; }
 }
 
 #installed-version {
-  margin-top: 3px;
+  margin: 0 0 3px;
   font-size: 11px;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
