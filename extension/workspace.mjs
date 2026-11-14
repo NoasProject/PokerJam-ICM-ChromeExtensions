@@ -53,7 +53,7 @@ checkUpdate.addEventListener("click", async () => {
     } else if (comparison < 0) {
       status("update-status", `公開版より新しいバージョンを使用中です（使用中 ${installedVersion} / 公開版 ${version}）`);
     } else {
-      status("update-status", `最新版を使用中です（${installedVersion}）`, "success");
+      status("update-status", "最新版を使用中です", "success");
     }
   } catch {
     status("update-status", "公開リリースのバージョンを取得できませんでした。時間をおいて再試行してください。", "error");
