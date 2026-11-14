@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PokerJam ICM - ZenoSolver</title>
+  <link rel="stylesheet" href="workspace.css">
+  <script type="module" src="workspace.mjs"></script>
+</head>
+<body>
+  <main inert>
+    <header>
+      <h1>PokerJam ICM - ZenoSolver</h1>
+      <button id="open-options" class="settings-button" type="button">詳細設定</button>
+    </header>
+
+    <div class="layout">
+      <section aria-labelledby="settings-title">
+        <h2 id="settings-title">トーナメント設定</h2>
+        <form id="settings">
+          <div class="player-counts">
+            <span>プレイヤー</span>
+            <input id="remaining" aria-label="残り人数（全卓）" aria-describedby="entries-hint"
+              type="text" inputmode="numeric" pattern="[0-9]+" required>
+            <span aria-hidden="true">/</span>
+            <input id="entries" aria-label="総エントリー数" aria-describedby="entries-hint"
+              type="text" inputmode="numeric" pattern="[0-9]+" required>
+          </div>
+          <small id="entries-hint">残り人数 / 総エントリー数（リエントリー含む）</small>
+
+          <small id="estimated-average" role="status" hidden></small>
+
+          <div class="points-preview">
+            <output for="entries" aria-labelledby="points-title">
+              <span class="points-heading">
+                <span id="points-title">成績ポイント</span>
+                <span id="itm-count" hidden></span>
+              </span>
+              <span class="points-summary">
+                <span class="points-metric">
+                  <span class="points-label">1位</span>
+                  <span id="first-points" class="points-value">—</span>
+                </span>
+                <span class="points-metric">
+                  <span class="points-label">1順位アップ</span>
+                  <span id="rank-increase" class="points-value">—</span>
+                </span>
+                <span class="points-metric">
+                  <span class="points-label">入賞最下位</span>
+                  <span id="last-points" class="points-value">—</span>
+                </span>
+              </span>
+            </output>
+          </div>
+          <p id="settings-status" class="status" role="status"></p>
+        </form>
+      </section>
+
+      <section id="history-panel" aria-labelledby="history-title">
+        <h2 id="history-title">ハンド履歴</h2>
+        <div class="history-actions">
+          <button id="paste-history" type="button" class="secondary">クリップボードから入力</button>
+          <button id="open-history-file" type="button" class="settings-button">ファイルを選ぶ</button>
+          <input id="history-file" type="file" accept=".txt,.log,.hh,text/plain" hidden>
+        </div>
+        <small>履歴ファイルはここにドロップできます。</small>
+        <p id="history-status" class="status" role="status"></p>
+
+        <div id="preview" hidden>
+          <p id="blinds" class="blinds"></p>
+          <table>
+            <caption class="sr-only">開始スタック</caption>
+            <thead>
+              <tr><th scope="col">位置</th><th scope="col">プレイヤー</th><th scope="col">チップ</th><th scope="col">BB</th></tr>
+            </thead>
+            <tbody id="players"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div>
+        <button id="send" type="submit" form="settings" disabled>カスタムプリフロップツリーに入力</button>
+        <p id="send-status" class="status" role="status"></p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
