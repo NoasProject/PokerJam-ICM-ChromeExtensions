@@ -11,6 +11,9 @@ const POSITIONS = [
 ];
 
 const NUMBER = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?`;
+const HAND_START = /^[^\S\r\n]*PokerStars (?:Hand|Game) #/gim;
+const TABLE = /^Table '.+' (\d+)-max Seat #(\d+) is the button$/i;
+const HOLE_CARDS = /^\*\*\* HOLE CARDS \*\*\*$/i;
 const BLINDS = new RegExp(String.raw`\((${NUMBER})\s*\/\s*(${NUMBER})\)`);
 const SEAT = new RegExp(String.raw`^Seat (\d+): (.+) \((${NUMBER}) in chips\)$`, "i");
 const POST = new RegExp(
@@ -26,13 +29,49 @@ function toBB(chips, bigBlind) {
   return Number((chips / bigBlind).toPrecision(12));
 }
 
+export function parseHandHistories(text) {
+  const starts = Array.from(text.matchAll(HAND_START), ({ index }) => index);
+  const blocks = starts.length > 1
+    ? starts.map((start, index) => text.slice(start, starts[index + 1]).trim())
+    : [text.trim()];
+
+  const histories = blocks.map((source, sourceIndex) => {
+    const header = source.split(/\r?\n/, 1)[0].trimEnd();
+    const id = header.match(/^PokerStars (?:Hand|Game) #(\d+):/i)?.[1];
+    const timestamp = header.match(/ - (\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}(?: [A-Z]{2,5})?)$/)?.[1];
+    const heroCards = source.match(/^Dealt to Hero \[([2-9TJQKA][cdhs]) ([2-9TJQKA][cdhs])\]/im)?.slice(1) ?? [];
+    const history = { source, sourceIndex, id, timestamp, heroCards };
+    try {
+      const hand = parseHandHistory(source);
+      return { ...history, hand, headsUp: hand.players.length === 2, error: "" };
+    } catch (error) {
+      // A blind mismatch can leave the seats readable even when the hand cannot be parsed.
+      const lines = source.split(/\r?\n/).map((line) => line.trim());
+      const holeCards = lines.findIndex((line) => HOLE_CARDS.test(line));
+      const headsUp = Boolean(id) && TABLE.test(lines[1] ?? "") && holeCards > 1 &&
+        lines.slice(2, holeCards).filter((line) => SEAT.test(line)).length === 2;
+      return { ...history, hand: null, headsUp, error: error.message };
+    }
+  });
+
+  const allTimed = histories.every(({ timestamp }) => timestamp);
+  return histories.sort((a, b) => {
+    if (allTimed) {
+      const byTime = b.timestamp.slice(0, 19).localeCompare(a.timestamp.slice(0, 19));
+      if (byTime) return byTime;
+    }
+    const aId = a.id ?? "";
+    const bId = b.id ?? "";
+    return bId.length - aId.length || bId.localeCompare(aId);
+  });
+}
+
 export function parseHandHistory(text) {
-  const lines = text.trim().split(/\r?\n/).map((line) => line.trim());
-  const headers = lines.filter((line) => /^PokerStars (?:Hand|Game) #/i.test(line));
-  if (headers.length > 1) {
+  if ((text.match(HAND_START)?.length ?? 0) > 1) {
     throw new Error("ハンド履歴を1件ずつ貼り付けてください。");
   }
 
+  const lines = text.trim().split(/\r?\n/).map((line) => line.trim());
   const header = /^PokerStars (?:Hand|Game) #\d+:\s+Tournament #\d+,.*Hold['’]em No Limit/i.test(lines[0]);
   const blinds = lines[0].match(BLINDS);
   if (!header || !blinds) {
@@ -45,8 +84,8 @@ export function parseHandHistory(text) {
     throw new Error("ヘッダーのブラインド額を確認してください。");
   }
 
-  const table = /^Table '.+' (\d+)-max Seat #(\d+) is the button$/i.exec(lines[1] ?? "");
-  const holeCards = lines.findIndex((line) => /^\*\*\* HOLE CARDS \*\*\*$/i.test(line));
+  const table = TABLE.exec(lines[1] ?? "");
+  const holeCards = lines.findIndex((line) => HOLE_CARDS.test(line));
   if (!table || holeCards < 0) {
     throw new Error("テーブルとブラインドの記録を含むハンド履歴を貼り付けてください。");
   }
@@ -108,6 +147,7 @@ export function parseHandHistory(text) {
     players: ordered.map((player, index) => ({
       ...player,
       position: POSITIONS[count][index],
+      isHero: player.name === "Hero",
       bb: toBB(player.chips, bigBlind),
     })),
   };

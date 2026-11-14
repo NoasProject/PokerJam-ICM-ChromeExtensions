@@ -30,18 +30,27 @@
 
     <div class="layout">
       <section aria-labelledby="settings-title">
-        <h2 id="settings-title">トーナメント設定</h2>
         <form id="settings">
-          <div class="player-counts">
-            <span>プレイヤー</span>
-            <input id="remaining" aria-label="残り人数（全卓）" aria-describedby="entries-hint"
-              type="text" inputmode="numeric" pattern="[0-9]+" required>
-            <span aria-hidden="true">/</span>
-            <input id="entries" aria-label="総エントリー数" aria-describedby="entries-hint"
-              type="text" inputmode="numeric" pattern="[0-9]+" required>
+          <div class="settings-heading">
+            <h2 id="settings-title">トーナメント設定</h2>
+            <label class="final-table-option">
+              <input id="final-table" type="checkbox" aria-describedby="final-table-hint">
+              FT想定
+            </label>
+            <span id="final-table-hint" class="sr-only">選んだハンドの着席人数を残り人数として使います。</span>
           </div>
-          <small id="entries-hint">残り人数 / 総エントリー数（リエントリー含む）</small>
-
+          <div class="player-counts">
+            <div id="remaining-field">
+              <label for="remaining">残り人数</label>
+              <input id="remaining" type="text" inputmode="numeric" pattern="[0-9]+" required>
+            </div>
+            <div>
+              <label for="entries">総エントリー数</label>
+              <input id="entries" type="text" inputmode="numeric" pattern="[0-9]+" required>
+            </div>
+          </div>
+          <p id="final-table-count" class="final-table-count" role="status" hidden></p>
+          <p id="settings-status" class="status" role="status"></p>
           <small id="estimated-average" role="status" hidden></small>
 
           <div class="points-preview">
@@ -66,7 +75,6 @@
               </span>
             </output>
           </div>
-          <p id="settings-status" class="status" role="status"></p>
         </form>
       </section>
 
@@ -78,6 +86,10 @@
           <button id="open-history-file" type="button" class="settings-button">ファイルを選ぶ</button>
           <input id="history-file" type="file" accept=".txt,.log,.hh,text/plain" hidden>
           <small>ここにファイルをドロップできます</small>
+        </div>
+        <div id="history-picker" hidden>
+          <label id="history-picker-label" for="history-select">表示するハンド</label>
+          <select id="history-select"></select>
         </div>
         <p id="history-status" class="status" role="status"></p>
 
@@ -91,9 +103,14 @@
             <tbody id="players"></tbody>
           </table>
         </div>
+        <details id="history-details" hidden>
+          <summary>元の履歴</summary>
+          <pre id="history-source" tabindex="0" aria-label="選択したハンドの元の履歴"></pre>
+        </details>
       </section>
 
       <div class="solver-actions">
+        <p id="send-toast" class="toast send-toast" role="status"></p>
         <button id="send" type="submit" form="settings" disabled>カスタムプリフロップツリーに入力</button>
         <p id="send-status" class="status" role="status"></p>
       </div>

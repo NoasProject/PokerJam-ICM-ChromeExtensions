@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseHandHistory } from "../extension/hand-history.mjs";
+import { parseHandHistories, parseHandHistory } from "../extension/hand-history.mjs";
 
 const finalTable = `PokerStars Hand #13579: Tournament #2468, Freeroll Hold'em No Limit - Level XV (6000/12000) - 2026/11/13 08:02:20 ET
 Table 'JAM用' 9-max Seat #4 is the button
@@ -30,6 +30,7 @@ test("reads POKER Jam's export layout and assigns the nine positions clockwise",
     ["CO", 3], ["BTN", 4], ["SB", 5], ["BB", 6],
   ]);
   assert.equal(hand.players.find(({ position }) => position === "BTN").bb, 6.08333333333);
+  assert.deepEqual(hand.players.filter(({ isHero }) => isHero).map(({ position }) => position), ["BTN"]);
   assert.equal(hand.players.at(-1).bb, 15.25);
 });
 
@@ -47,6 +48,7 @@ test("uses the button as SB heads-up, accounts for empty seats and reads comma-g
     ["SB", 8, 8], ["BB", 1, 11],
   ]);
   assert.equal(hand.ante.type, "none");
+  assert.equal(hand.players.some(({ isHero }) => isHero), false);
 });
 
 test("classifies equal per-player antes and rejects inconsistent ante posts", () => {
@@ -60,4 +62,43 @@ SB Player: posts the ante 200
 test("rejects a second hand or blinds that conflict with the assigned seats", () => {
   assert.throws(() => parseHandHistory(`${finalTable}\n\n${headsUp}`), /1件ずつ/);
   assert.throws(() => parseHandHistory(headsUp.replace("SB Player: posts small", "BB Player: posts small")), /席順/);
+});
+
+test("sorts consecutive hands by ID when timestamps are missing and keeps invalid hands as text", () => {
+  const missingSmallBlind = headsUp.replace("PokerStars Hand #3579", "PokerStars Game #4321")
+    .replace("SB Player: posts small blind 1,000\n", "");
+  const source = `\uFEFF${headsUp}\n  ${missingSmallBlind}\n\n${finalTable}`.replaceAll("\n", "\r\n");
+  const histories = parseHandHistories(source);
+
+  assert.deepEqual(histories.map(({ id }) => id), ["13579", "4321", "3579"]);
+  assert.deepEqual(histories.map(({ sourceIndex }) => sourceIndex), [2, 1, 0]);
+  assert.equal(histories[0].timestamp, "2026/11/13 08:02:20 ET");
+  assert.deepEqual(histories[0].heroCards, ["Td", "8d"]);
+  assert.equal(histories[0].hand.players.length, 9);
+  assert.equal(histories[1].hand, null);
+  assert.match(histories[1].error, /ブラインド/);
+  assert.equal(histories[1].source, missingSmallBlind.replaceAll("\n", "\r\n"));
+  assert.equal(histories[2].hand.players.length, 2);
+});
+
+test("sorts out-of-order hands by recorded time when every hand has a timestamp", () => {
+  const earlier = finalTable.replace("08:02:20", "08:01:00");
+  const later = finalTable.replace("#13579", "#13578").replace("08:02:20", "08:03:00");
+  const histories = parseHandHistories(`${finalTable}\n${earlier}\n${later}`);
+
+  assert.deepEqual(histories.map(({ sourceIndex }) => sourceIndex), [2, 0, 1]);
+});
+
+test("recognizes heads-up hands even when the blind posts conflict with the button", () => {
+  const mismatched = headsUp.replace("Seat #8 is the button", "Seat #1 is the button");
+  const missingBlind = finalTable.replace("プレイヤー5: posts small blind 6000\n", "");
+  const [validHu, invalidHu, invalidMultiway] = [headsUp, mismatched, missingBlind]
+    .map((text) => parseHandHistories(text)[0]);
+
+  assert.equal(validHu.headsUp, true);
+  assert.equal(validHu.hand.players.length, 2);
+  assert.equal(invalidHu.headsUp, true);
+  assert.equal(invalidHu.hand, null);
+  assert.equal(invalidMultiway.headsUp, false);
+  assert.equal(invalidMultiway.hand, null);
 });

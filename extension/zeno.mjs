@@ -90,12 +90,22 @@ export function fillZenoForm(settings) {
         ["#ipAvg", field.averageBB],
       );
     }
+    values.push(["#ipMenu", ""]); // Standard (by stack depth)
     for (const [selector, expected] of values) write(selector, expected);
+
+    // Seat and stack changes can recompute the advanced settings.
+    const coldCallOptions = ['#ipCc button[data-v="all"]', '#ipC3 button[data-v="all"]'];
+    for (const selector of coldCallOptions) activate(selector);
+    if (dialog.querySelector("#ipOLimp")?.checked) required("#ipOLimp").click();
+    if (!required("#ipSbLimp").checked) required("#ipSbLimp").click();
 
     // Confirm the page still shows the values after all of its change handlers.
     if (required("#ipN").value !== String(count) || required("#ipAnteK").value !== hand.ante.type ||
         values.some(([selector, expected]) => required(selector).value !== String(expected)) ||
-        required("#ipBty").checked) {
+        required("#ipMenu").selectedIndex < 0 ||
+        required("#ipBty").checked ||
+        coldCallOptions.some((selector) => !required(selector).classList.contains("on")) ||
+        dialog.querySelector("#ipOLimp")?.checked !== false || !required("#ipSbLimp").checked) {
       throw new Error("一部の設定を入力できませんでした。ZenoSolverのフォームを確認してください。");
     }
 

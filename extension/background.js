@@ -45,9 +45,10 @@ async function fillSolver(settings) {
 
   await chrome.storage.session.set({ solverStatus: { state: "running" } });
 
-  let result = { state: "success" };
+  let result;
   try {
     await fillCurrentZenoTab(tab.id, settings);
+    result = { state: "success", completedAt: Date.now() };
   } catch (error) {
     result = { state: "error", message: error.message };
   }

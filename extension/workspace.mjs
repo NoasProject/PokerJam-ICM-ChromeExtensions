@@ -1,4 +1,4 @@
-import { parseHandHistory } from "./hand-history.mjs";
+import { parseHandHistories } from "./hand-history.mjs";
 import { calculatePayouts, summarizePoints } from "./payouts.mjs";
 import { estimateFieldAverageBB } from "./field-stacks.mjs";
 import { checkForReleaseUpdate } from "./release-updates.mjs";
@@ -6,29 +6,43 @@ import { checkForReleaseUpdate } from "./release-updates.mjs";
 const byId = (id) => document.getElementById(id);
 const MAX_HISTORY_LENGTH = 100000;
 const MID_STAGE_MIN_PLAYERS = 10;
+const HEADS_UP_STATUS = "HUのためICM不可";
+const SUCCESS_TOAST_MS = 3000;
 const historyPanel = byId("history-panel");
 const historyPasteTarget = byId("history-paste-target");
 const openFile = byId("open-history-file");
 const historyFile = byId("history-file");
+const historyPicker = byId("history-picker");
+const historySelect = byId("history-select");
+const historyDetails = byId("history-details");
+const historySource = byId("history-source");
 const entriesInput = byId("entries");
 const remainingInput = byId("remaining");
+const finalTableInput = byId("final-table");
+const remainingField = byId("remaining-field");
+const finalTableCount = byId("final-table-count");
 const playerCountInputs = [remainingInput, entriesInput];
+const lastPlayerCountValues = new Map();
 const averagePreview = byId("estimated-average");
 const settings = byId("settings");
 const send = byId("send");
+const sendToast = byId("send-toast");
 const checkUpdate = byId("check-update");
 const updateRelease = byId("update-release");
-const draftFields = [entriesInput, remainingInput];
-const historyControls = [historyPasteTarget, openFile, historyFile];
+const historyControls = [historyPasteTarget, openFile, historyFile, historySelect];
 const chipFormat = new Intl.NumberFormat("ja-JP");
 const bbFormat = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 4 });
 const pointFormat = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 2 });
 const anteLabels = { none: "なし", ante: "全員", bba: "BB" };
+const ranks = "23456789TJQKA";
 
 let hand = null;
+let histories = [];
 let historyText = "";
 let sending = false;
 let importingHistory = false;
+let solverState;
+let toastTimer;
 
 function status(id, message = "", tone = "") {
   const element = byId(id);
@@ -92,29 +106,47 @@ function renderPoints(entries) {
 }
 
 function updateSettings() {
+  const finalTable = finalTableInput.checked;
+  const busy = send.dataset.busy === "true";
+  remainingField.hidden = finalTable;
+  remainingInput.disabled = finalTable || busy;
+
   const entries = entriesInput.value ? Number(entriesInput.value) : NaN;
-  const remaining = remainingInput.value ? Number(remainingInput.value) : NaN;
   const seated = hand?.players.length;
-  const mid = Number.isSafeInteger(remaining) &&
+  const selectedHistory = histories[historySelect.selectedIndex];
+  let finalTableMessage = "";
+  if (finalTable) {
+    const displayedCount = selectedHistory?.headsUp ? 2 : seated;
+    if (displayedCount) {
+      finalTableMessage = `残り人数 ${displayedCount}人（ハンド履歴から取得）`;
+    } else {
+      finalTableMessage = selectedHistory ? "このハンドから残り人数を取得できません。" : "ハンド履歴を取り込むと残り人数が表示されます。";
+    }
+  }
+  finalTableCount.hidden = !finalTable;
+  if (finalTableCount.textContent !== finalTableMessage) finalTableCount.textContent = finalTableMessage;
+
+  const remaining = finalTable ? (seated ?? NaN) : Number(remainingInput.value || NaN);
+  const mid = !finalTable && Number.isSafeInteger(remaining) &&
     (remaining >= MID_STAGE_MIN_PLAYERS || (seated != null && remaining > seated));
   let error = "";
   if ([entries, remaining].some((count) => !Number.isNaN(count) && !Number.isSafeInteger(count))) {
-    error = "総エントリー数と残り人数は整数で入力してください。";
+    error = finalTable ? "総エントリー数は整数で入力してください。" : "総エントリー数と残り人数は整数で入力してください。";
   } else if (entries < 2 || remaining < 2) {
-    error = "総エントリー数と残り人数は2以上にしてください。";
+    error = finalTable ? "総エントリー数は2以上にしてください。" : "総エントリー数と残り人数は2以上にしてください。";
   } else if (Number.isFinite(remaining) && seated && remaining < seated) {
     error = `残り人数はハンド履歴の着席人数（${seated}人）以上にしてください。`;
   } else if (Number.isFinite(entries) && remaining > entries) {
-    error = "残り人数は総エントリー数以下にしてください。";
+    error = finalTable ? `総エントリー数はハンド履歴の着席人数（${seated}人）以上にしてください。` : "残り人数は総エントリー数以下にしてください。";
   }
   status("settings-status", error, error ? "error" : "");
 
   const countsValid = Number.isSafeInteger(entries) && Number.isSafeInteger(remaining) &&
     remaining >= 2 && entries >= remaining && !error;
-  const busy = send.dataset.busy === "true";
+  const canUseIcm = seated >= 3;
   renderPoints(entries);
 
-  const field = mid && countsValid && hand
+  const field = mid && countsValid && canUseIcm
     ? { entries, remaining, averageBB: estimateFieldAverageBB(hand.players, remaining) }
     : null;
   const estimate = field ? `全体の平均スタック（推定） ${bbFormat.format(field.averageBB)} BB` : "";
@@ -122,76 +154,154 @@ function updateSettings() {
     averagePreview.textContent = estimate;
   }
   averagePreview.hidden = !field;
-  send.disabled = busy || importingHistory || !seated || !countsValid;
+  send.disabled = busy || importingHistory || !canUseIcm || !countsValid;
   return { entries, remaining, field };
 }
 
 function renderHand() {
-  byId("preview").hidden = false;
+  byId("preview").hidden = !hand;
+  if (!hand) return;
+
   const { smallBlind, bigBlind, ante, players } = hand;
   const blinds = [smallBlind, bigBlind].map((amount) => chipFormat.format(amount)).join(" / ");
   const anteAmount = ante.chips ? ` ${chipFormat.format(ante.chips)}` : "";
   byId("blinds").textContent = `${players.length}人 · SB / BB ${blinds} · アンティ ${anteLabels[ante.type]}${anteAmount}`;
 
-  const rows = players.map(({ position, chips, bb }) => {
+  const rows = players.map(({ position, isHero, chips, bb }) => {
     const row = document.createElement("tr");
-    for (const [index, value] of [position, chipFormat.format(chips), bbFormat.format(bb)].entries()) {
-      const cell = document.createElement(index === 0 ? "th" : "td");
-      if (index === 0) cell.scope = "row";
+    const positionCell = document.createElement("th");
+    positionCell.scope = "row";
+    positionCell.textContent = position;
+    if (isHero) {
+      const badge = document.createElement("span");
+      badge.className = "hero-badge";
+      badge.textContent = "Hero";
+      positionCell.append(" ", badge);
+    }
+    row.append(positionCell);
+
+    for (const value of [chipFormat.format(chips), bbFormat.format(bb)]) {
+      const cell = document.createElement("td");
       cell.textContent = value;
       row.append(cell);
     }
     return row;
   });
   byId("players").replaceChildren(...rows);
+}
+
+function selectHistory(index) {
+  historySelect.selectedIndex = index;
+  const selected = histories[index];
+  hand = selected.hand;
+  const message = selected.headsUp ? HEADS_UP_STATUS : selected.error;
+  status("history-status", message ? `(${message})` : "", message ? "error" : "");
+  historyDetails.hidden = histories.length < 2 && !selected.headsUp;
+  historyDetails.open = !hand;
+  const source = selected.timestamp ? selected.source.replace(` - ${selected.timestamp}`, "") : selected.source;
+  historySource.textContent = historyDetails.hidden ? "" : source;
+  historySource.scrollTop = 0;
+  renderHand();
   updateSettings();
 }
 
-function readHistory(text) {
+function formatHoleCards([first, second]) {
+  if (!second) return "";
+
+  const [firstRank, firstSuit] = first.toUpperCase();
+  const [secondRank, secondSuit] = second.toUpperCase();
+  if (firstRank === secondRank) return firstRank + secondRank;
+
+  const ordered = ranks.indexOf(firstRank) > ranks.indexOf(secondRank)
+    ? firstRank + secondRank
+    : secondRank + firstRank;
+  return ordered + (firstSuit === secondSuit ? "s" : "o");
+}
+
+function readHistory(text, selectedSourceIndex) {
   try {
     if (!text.trim()) throw new Error("ハンド履歴のテキストがありません。");
     if (text.length > MAX_HISTORY_LENGTH) {
-      throw new Error("ハンド履歴が長すぎます。1件分を取り込んでください。");
+      throw new Error("ハンド履歴が長すぎます。件数を減らして取り込んでください。");
     }
-    hand = parseHandHistory(text);
+    const parsed = parseHandHistories(text);
+    if (parsed.length === 1 && parsed[0].error && !parsed[0].headsUp) throw new Error(parsed[0].error);
+
+    histories = parsed;
     historyText = text;
   } catch (error) {
     status("history-status", error.message, "error");
     return false;
   }
-  status("history-status");
-  renderHand();
+
+  historyPicker.hidden = histories.length < 2;
+  byId("history-picker-label").textContent = `表示するハンド（${histories.length}件）`;
+  historySelect.replaceChildren(...histories.map(({ heroCards, headsUp, error }, index) => {
+    const message = headsUp ? HEADS_UP_STATUS : error && "ICM入力不可";
+    const label = [`${histories.length - index}.`, formatHoleCards(heroCards), message && `(${message})`];
+    const option = document.createElement("option");
+    option.textContent = label.filter(Boolean).join(" ");
+    return option;
+  }));
+  const selectedIndex = histories.findIndex(({ sourceIndex }) => sourceIndex === selectedSourceIndex);
+  selectHistory(Math.max(0, selectedIndex));
   return true;
 }
 
 function saveDraft() {
-  const values = Object.fromEntries(draftFields.map(({ id, value }) => [id, value]));
+  const values = Object.fromEntries(playerCountInputs.map(({ id, value }) => [id, value]));
   values.history = historyText;
-  chrome.storage.session.set({ draft: { values } }).catch((error) => {
+  // Drafts saved before sorting used the hand's position in the original text.
+  const selectedHistoryIndex = histories[historySelect.selectedIndex]?.sourceIndex ?? -1;
+  chrome.storage.session.set({ draft: { values, selectedHistoryIndex } }).catch((error) => {
     status("send-status", error.message, "error");
   });
 }
 
+function saveFinalTablePreference() {
+  chrome.storage.local.set({ finalTable: finalTableInput.checked }).catch(() => {
+    status("send-status", "FT想定の設定を保存できませんでした。", "error");
+  });
+}
+
 function showSolverStatus(result) {
-  const busy = result?.state === "running";
+  const previousState = solverState;
+  solverState = result?.state;
+  const busy = solverState === "running";
   send.dataset.busy = String(busy);
-  for (const control of playerCountInputs) control.disabled = busy;
+  entriesInput.disabled = busy;
+  finalTableInput.disabled = busy;
   setHistoryControlsDisabled(busy || importingHistory);
   updateSettings();
 
+  if (solverState === "success") {
+    status("send-status");
+    // Completion can arrive through both session storage and the message response.
+    const remaining = SUCCESS_TOAST_MS - (Date.now() - result.completedAt);
+    if (previousState !== "success" && remaining > 0) {
+      sendToast.textContent = "反映しました";
+      toastTimer = setTimeout(hideSuccessToast, remaining);
+    }
+    return;
+  }
+
+  hideSuccessToast();
   if (busy) {
     status("send-status", "カスタムプリフロップツリーに入力しています…");
-  } else if (result?.state === "success") {
-    status("send-status", "カスタムプリフロップツリーに入力しました。内容を確認して「計算」を押してください。", "success");
-  } else if (result?.state === "error") {
+  } else if (solverState === "error") {
     status("send-status", result.message, "error");
   } else {
     status("send-status");
   }
 }
 
+function hideSuccessToast() {
+  clearTimeout(toastTimer);
+  sendToast.textContent = "";
+}
+
 function clearSolverStatus() {
-  status("send-status");
+  showSolverStatus();
   chrome.storage.session.remove("solverStatus").catch(() => {});
 }
 
@@ -231,6 +341,14 @@ historyPasteTarget.addEventListener("input", () => {
   historyPasteTarget.value = "";
 });
 
+historySelect.addEventListener("change", () => {
+  remainingInput.value = "";
+  lastPlayerCountValues.set(remainingInput, "");
+  selectHistory(historySelect.selectedIndex);
+  clearSolverStatus();
+  saveDraft();
+});
+
 openFile.addEventListener("click", () => historyFile.click());
 historyFile.addEventListener("change", () => {
   const files = [...historyFile.files];
@@ -246,7 +364,7 @@ function importHistoryFile(files) {
   }
   const [file] = files;
   if (file.size > MAX_HISTORY_LENGTH * 4) {
-    status("history-status", "ファイルが大きすぎます。ハンド履歴1件分のテキストファイルを選んでください。", "error");
+    status("history-status", "ファイルが大きすぎます。履歴の件数を減らして取り込んでください。", "error");
     return;
   }
   void importHistory(() => file.text(), "ファイルを読み取れませんでした。テキストファイルを選んでください。");
@@ -274,9 +392,9 @@ document.addEventListener("drop", (event) => {
   if (historyPanel.contains(event.target)) importHistoryFile(event.dataTransfer.files);
 });
 
-settings.addEventListener("input", () => {
+settings.addEventListener("input", (event) => {
   clearSolverStatus();
-  updateSettings();
+  if (event.target === finalTableInput) saveFinalTablePreference();
   saveDraft();
 });
 
@@ -316,27 +434,33 @@ chrome.storage?.onChanged.addListener((changes, area) => {
 });
 
 try {
-  const { draft, solverStatus } = await chrome.storage.session.get(["draft", "solverStatus"]);
+  const [{ draft, solverStatus }, { finalTable }] = await Promise.all([
+    chrome.storage.session.get(["draft", "solverStatus"]),
+    chrome.storage.local.get("finalTable"),
+  ]);
+  finalTableInput.checked = (finalTable ?? draft?.finalTable) === true;
+  if (finalTable === undefined && typeof draft?.finalTable === "boolean") saveFinalTablePreference();
   if (draft) {
-    for (const input of draftFields) input.value = draft.values[input.id] ?? input.value;
     for (const input of playerCountInputs) {
+      input.value = draft.values[input.id] ?? input.value;
       // Older drafts may contain exponent notation from the number input.
       if (input.value && !/^[0-9]+$/.test(input.value)) {
         const count = Number(input.value);
         input.value = Number.isSafeInteger(count) && count >= 0 ? String(count) : "";
       }
     }
-    if (draft.values.history) readHistory(draft.values.history);
+    if (draft.values.history) readHistory(draft.values.history, draft.selectedHistoryIndex);
   }
   if (!statusChanged) showSolverStatus(solverStatus);
 } catch (error) {
   showSolverStatus({ state: "error", message: error.message });
 } finally {
   for (const input of playerCountInputs) {
-    let lastValue = input.value;
+    lastPlayerCountValues.set(input, input.value);
     input.addEventListener("input", () => {
       const digits = input.value.replace(/[０-９]/g, (digit) => digit.normalize("NFKC"));
-      if (/^[0-9]*$/.test(digits)) lastValue = digits;
+      if (/^[0-9]*$/.test(digits)) lastPlayerCountValues.set(input, digits);
+      const lastValue = lastPlayerCountValues.get(input);
       if (input.value !== lastValue) {
         const cursor = input.selectionStart;
         input.value = lastValue;
