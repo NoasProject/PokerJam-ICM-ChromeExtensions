@@ -2,8 +2,14 @@
   "manifest_version": 3,
   "name": "PokerJam ICM - ZenoSolver",
   "description": "POKER Jamのトーナメント履歴からZenoSolverのICMフォームにテーブル設定を入力します。",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "minimum_chrome_version": "120",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": ["declarativeContent", "scripting", "storage"],
   "optional_permissions": ["clipboardRead"],
   "host_permissions": ["https://zenosolver.com/*"],
@@ -13,6 +19,11 @@
     "type": "module"
   },
   "action": {
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "24": "icons/icon-24.png",
+      "32": "icons/icon-32.png"
+    },
     "default_title": "PokerJam ICM - ZenoSolver",
     "default_popup": "workspace.html",
     "default_state": "disabled"
