@@ -274,6 +274,7 @@ small { display: block; margin-top: 5px; }
   to { transform: rotate(1turn); }
 }
 
+.update-result { position: relative; }
 .update-result .status {
   display: block;
   margin: 0;
@@ -285,6 +286,25 @@ small { display: block; margin-top: 5px; }
   color: var(--accent-text);
   font-weight: 650;
 }
+
+.toast {
+  position: absolute;
+  inset-inline: 4px;
+  width: fit-content;
+  max-width: calc(100% - 8px);
+  margin-inline: auto;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--success);
+  text-align: center;
+  font-weight: 700;
+  pointer-events: none;
+}
+.toast:empty { opacity: 0; }
+.toast[data-tone="error"] { color: var(--error); }
+.update-toast { top: 100%; z-index: 2; }
 
 .jam-popup section { padding: 14px; }
 .jam-popup input { background: var(--input); }

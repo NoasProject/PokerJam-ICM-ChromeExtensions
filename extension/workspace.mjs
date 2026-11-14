@@ -39,24 +39,38 @@ function status(id, message = "", tone = "") {
 const installedVersion = chrome.runtime.getManifest().version;
 byId("installed-version").textContent = `v${installedVersion}`;
 
+const UPDATE_TOAST_MS = 3000;
+let updateToastTimer;
+
+function showUpdateToast(message, tone = "") {
+  clearTimeout(updateToastTimer);
+  status("update-toast", message, tone);
+  if (message) updateToastTimer = setTimeout(() => status("update-toast"), UPDATE_TOAST_MS);
+}
+
 checkUpdate.addEventListener("click", async () => {
   checkUpdate.disabled = true;
   updateRelease.hidden = true;
   updateRelease.removeAttribute("href");
+  showUpdateToast("");
   status("update-status", "更新を確認しています…");
   try {
     const { version, comparison, url } = await checkForReleaseUpdate(installedVersion);
     if (comparison > 0) {
-      status("update-status", `新しいバージョンがあります（使用中 ${installedVersion} / 公開版 ${version}）`, "success");
+      status("update-status", `使用中 ${installedVersion} / 公開版 ${version}`);
       updateRelease.href = url;
       updateRelease.hidden = false;
+      showUpdateToast("新しいバージョンがあります");
     } else if (comparison < 0) {
-      status("update-status", `公開版より新しいバージョンを使用中です（使用中 ${installedVersion} / 公開版 ${version}）`);
+      status("update-status");
+      showUpdateToast("公開版より新しいバージョンを使用中です");
     } else {
-      status("update-status", "最新版を使用中です", "success");
+      status("update-status");
+      showUpdateToast("最新版を使用中です");
     }
   } catch {
     status("update-status", "公開リリースのバージョンを取得できませんでした。時間をおいて再試行してください。", "error");
+    showUpdateToast("更新を確認できませんでした", "error");
   } finally {
     checkUpdate.disabled = false;
   }
