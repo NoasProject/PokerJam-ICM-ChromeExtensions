@@ -11,7 +11,7 @@
     "128": "icons/icon-128.png"
   },
   "permissions": ["declarativeContent", "scripting", "storage"],
-  "host_permissions": ["https://zenosolver.com/*"],
+  "host_permissions": ["https://zenosolver.com/*", "https://api.github.com/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

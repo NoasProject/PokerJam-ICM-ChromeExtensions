@@ -1,6 +1,7 @@
 import { parseHandHistory } from "./hand-history.mjs";
 import { calculatePayouts, summarizePoints } from "./payouts.mjs";
 import { estimateFieldAverageBB } from "./field-stacks.mjs";
+import { checkForReleaseUpdate } from "./release-updates.mjs";
 
 const byId = (id) => document.getElementById(id);
 const MAX_HISTORY_LENGTH = 100000;
@@ -15,6 +16,8 @@ const playerCountInputs = [remainingInput, entriesInput];
 const averagePreview = byId("estimated-average");
 const settings = byId("settings");
 const send = byId("send");
+const checkUpdate = byId("check-update");
+const updateRelease = byId("update-release");
 const draftFields = [entriesInput, remainingInput];
 const historyControls = [historyPasteTarget, openFile, historyFile];
 const chipFormat = new Intl.NumberFormat("ja-JP");
@@ -32,6 +35,30 @@ function status(id, message = "", tone = "") {
   element.textContent = message;
   element.dataset.tone = tone;
 }
+
+checkUpdate.addEventListener("click", async () => {
+  checkUpdate.disabled = true;
+  updateRelease.hidden = true;
+  updateRelease.removeAttribute("href");
+  status("update-status", "更新を確認しています…");
+  try {
+    const installed = chrome.runtime.getManifest().version;
+    const { version, comparison, url } = await checkForReleaseUpdate(installed);
+    if (comparison > 0) {
+      status("update-status", `新しいバージョンがあります（使用中 ${installed} / 公開版 ${version}）`, "success");
+      updateRelease.href = url;
+      updateRelease.hidden = false;
+    } else if (comparison < 0) {
+      status("update-status", `公開版より新しいバージョンを使用中です（使用中 ${installed} / 公開版 ${version}）`);
+    } else {
+      status("update-status", `最新版を使用中です（${installed}）`, "success");
+    }
+  } catch {
+    status("update-status", "公開リリースのバージョンを取得できませんでした。時間をおいて再試行してください。", "error");
+  } finally {
+    checkUpdate.disabled = false;
+  }
+});
 
 function renderPoints(entries) {
   const points = Number.isSafeInteger(entries) && entries >= 2 ? summarizePoints(entries) : null;

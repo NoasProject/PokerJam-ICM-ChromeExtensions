@@ -21,6 +21,14 @@ POKER Jamのトーナメントのハンド履歴を使い、ZenoSolverの「カ�
 
 ポップアップを閉じても、実行中の自動入力は続きます。貼り付けた履歴、入力内容、自動入力の結果は、同じChromeセッションでポップアップを開き直すと確認できます。
 
+## 更新の確認
+
+Mac・Windowsともに、ZenoSolver上のポップアップで「更新を確認」を押せます。ボタンを押すと、GitHubの最新の正式Releaseに対応する `extension/manifest.json` の `version` を読み取り、インストール済みのバージョンと比較します。
+
+公開版のバージョンが新しい場合は「Releaseページを開く」が表示されます。最新版のファイルをダウンロードして読み込み元の `extension` フォルダを差し替え、`chrome://extensions` で拡張機能を再読み込みしてください。
+
+Releaseを作成するときは、公開するコミットで `extension/manifest.json` の `version` を上げてからタグを作成してください。
+
 ## 対応範囲
 
 - POKER Jamが出力するPokerStars形式のNL Hold’emトーナメント履歴。2〜9人の着席スタックをBBに換算し、ボタン席をもとにポジションを割り当てます。
