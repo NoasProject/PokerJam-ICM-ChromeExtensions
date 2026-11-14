@@ -14,7 +14,13 @@
         <small id="installed-version"></small>
         <h1>PokerJam ICM - ZenoSolver</h1>
       </div>
-      <button id="check-update" class="settings-button" type="button">更新を確認</button>
+      <button id="check-update" class="settings-button" type="button" aria-label="更新を確認" title="更新を確認">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 5v5h-5M4 19v-5h5"/>
+          <path d="M4.6 9a8 8 0 0 1 13.2-2.6L20 10M4 14l2.2 3.6A8 8 0 0 0 19.4 15"/>
+        </svg>
+      </button>
     </header>
     <div class="update-result">
       <p id="update-status" class="status" role="status"></p>

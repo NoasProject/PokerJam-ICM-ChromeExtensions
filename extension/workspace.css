@@ -256,7 +256,13 @@ small { display: block; margin-top: 5px; }
   font-variant-numeric: tabular-nums;
 }
 
-.jam-popup #check-update { min-height: 36px; }
+.jam-popup #check-update {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  height: 38px;
+  padding: 0;
+}
 .update-result .status {
   display: block;
   margin: 0;
