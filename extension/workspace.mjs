@@ -118,7 +118,7 @@ function readHistory(text) {
     status("history-status", error.message, "error");
     return false;
   }
-  status("history-status", "開始スタックと席順を確認してください。");
+  status("history-status");
   renderHand();
   return true;
 }
