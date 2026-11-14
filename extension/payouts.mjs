@@ -1,3 +1,5 @@
+const DOLLARS_PER_POINT = 5;
+
 // Scale factors multiplied by 1,000 so the formula works in tenths of a point.
 const FIRST_PLACE_TENTHS = [
   [9, 1000],
@@ -24,13 +26,10 @@ export function summarizePoints(entries) {
   return { paidPlaces, first, increase, last };
 }
 
-export function calculatePayouts(entries, remaining, dollarsPerPoint = 10) {
+export function calculatePayouts(entries, remaining) {
   if (!Number.isSafeInteger(entries) || !Number.isSafeInteger(remaining) ||
       remaining < 2 || entries < remaining) {
     throw new Error("参加人数と残り人数を入力してください。残り人数は2人以上、参加人数以下です。");
-  }
-  if (dollarsPerPoint !== 5 && dollarsPerPoint !== 10) {
-    throw new Error("1ptの換算額は $10 または $5 を選んでください。");
   }
 
   const { paidPlaces, firstPlaceTenths } = pointStructure(entries);
@@ -38,6 +37,6 @@ export function calculatePayouts(entries, remaining, dollarsPerPoint = 10) {
   return Array.from({ length: Math.min(paidPlaces, remaining) }, (_, index) => {
     const rankWeight = 5 * rankSteps - 4 * index;
     const pointTenths = Math.round(firstPlaceTenths * rankWeight / (5 * rankSteps));
-    return Math.ceil(pointTenths * dollarsPerPoint / 10);
+    return Math.ceil(pointTenths * DOLLARS_PER_POINT / 10);
   });
 }

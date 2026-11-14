@@ -1,6 +1,5 @@
 import { parseHandHistory } from "./hand-history.mjs";
 import { calculatePayouts, summarizePoints } from "./payouts.mjs";
-import { readPreferences } from "./preferences.mjs";
 import { estimateFieldAverageBB } from "./field-stacks.mjs";
 
 const byId = (id) => document.getElementById(id);
@@ -27,7 +26,6 @@ let hand = null;
 let historyText = "";
 let sending = false;
 let importingHistory = false;
-let preferences;
 
 function status(id, message = "", tone = "") {
   const element = byId(id);
@@ -81,7 +79,7 @@ function updateSettings() {
     averagePreview.textContent = estimate;
   }
   averagePreview.hidden = !field;
-  send.disabled = busy || importingHistory || !seated || !countsValid || !preferences;
+  send.disabled = busy || importingHistory || !seated || !countsValid;
   return { entries, remaining, field };
 }
 
@@ -233,14 +231,6 @@ document.addEventListener("drop", (event) => {
   if (historyPanel.contains(event.target)) importHistoryFile(event.dataTransfer.files);
 });
 
-byId("open-options").addEventListener("click", async () => {
-  try {
-    await chrome.runtime.openOptionsPage();
-  } catch (error) {
-    status("send-status", error.message, "error");
-  }
-});
-
 settings.addEventListener("input", () => {
   clearSolverStatus();
   updateSettings();
@@ -254,7 +244,7 @@ settings.addEventListener("submit", async (event) => {
 
   sending = true;
   try {
-    const payouts = calculatePayouts(entries, remaining, preferences.pointRate);
+    const payouts = calculatePayouts(entries, remaining);
     const solverHand = {
       smallBlindBB: hand.smallBlindBB,
       ante: { type: hand.ante.type, bb: hand.ante.bb },
@@ -276,10 +266,6 @@ settings.addEventListener("submit", async (event) => {
 
 let statusChanged = false;
 chrome.storage?.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.preferences) {
-    preferences = readPreferences(changes.preferences.newValue);
-    updateSettings();
-  }
   if (area === "session" && changes.solverStatus?.newValue) {
     statusChanged = true;
     showSolverStatus(changes.solverStatus.newValue);
@@ -287,11 +273,7 @@ chrome.storage?.onChanged.addListener((changes, area) => {
 });
 
 try {
-  const [{ draft, solverStatus }, saved] = await Promise.all([
-    chrome.storage.session.get(["draft", "solverStatus"]),
-    chrome.storage.local.get("preferences"),
-  ]);
-  preferences ??= readPreferences(saved.preferences);
+  const { draft, solverStatus } = await chrome.storage.session.get(["draft", "solverStatus"]);
   if (draft) {
     for (const input of draftFields) input.value = draft.values[input.id] ?? input.value;
     for (const input of playerCountInputs) {

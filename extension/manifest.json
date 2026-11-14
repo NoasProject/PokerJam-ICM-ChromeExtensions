@@ -12,7 +12,6 @@
   },
   "permissions": ["declarativeContent", "scripting", "storage"],
   "host_permissions": ["https://zenosolver.com/*"],
-  "options_page": "options.html",
   "background": {
     "service_worker": "background.js",
     "type": "module"
