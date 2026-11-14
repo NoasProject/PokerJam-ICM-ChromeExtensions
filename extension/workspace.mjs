@@ -7,7 +7,7 @@ const byId = (id) => document.getElementById(id);
 const MAX_HISTORY_LENGTH = 100000;
 const MID_STAGE_MIN_PLAYERS = 10;
 const historyPanel = byId("history-panel");
-const pasteHistory = byId("paste-history");
+const historyPasteTarget = byId("history-paste-target");
 const openFile = byId("open-history-file");
 const historyFile = byId("history-file");
 const entriesInput = byId("entries");
@@ -17,7 +17,7 @@ const averagePreview = byId("estimated-average");
 const settings = byId("settings");
 const send = byId("send");
 const draftFields = [entriesInput, remainingInput];
-const historyControls = [pasteHistory, openFile, historyFile];
+const historyControls = [historyPasteTarget, openFile, historyFile];
 const chipFormat = new Intl.NumberFormat("ja-JP");
 const bbFormat = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 4 });
 const pointFormat = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 2 });
@@ -92,9 +92,9 @@ function renderHand() {
   const anteAmount = ante.chips ? ` ${chipFormat.format(ante.chips)}` : "";
   byId("blinds").textContent = `${players.length}人 · SB / BB ${blinds} · アンティ ${anteLabels[ante.type]}${anteAmount}`;
 
-  const rows = players.map(({ position, name, chips, bb }) => {
+  const rows = players.map(({ position, chips, bb }) => {
     const row = document.createElement("tr");
-    for (const [index, value] of [position, name, chipFormat.format(chips), bbFormat.format(bb)].entries()) {
+    for (const [index, value] of [position, chipFormat.format(chips), bbFormat.format(bb)].entries()) {
       const cell = document.createElement(index === 0 ? "th" : "td");
       if (index === 0) cell.scope = "row";
       cell.textContent = value;
@@ -159,7 +159,7 @@ function setHistoryControlsDisabled(disabled) {
 }
 
 async function importHistory(load, readError) {
-  if (pasteHistory.disabled) return;
+  if (historyPasteTarget.disabled) return;
 
   importingHistory = true;
   setHistoryControlsDisabled(true);
@@ -167,10 +167,6 @@ async function importHistory(load, readError) {
   status("history-status", "履歴を取り込んでいます…");
   try {
     const text = await load();
-    if (text === null) {
-      status("history-status", "クリップボードの読み取りを許可するか、履歴ファイルを取り込んでください。", "error");
-      return;
-    }
     if (readHistory(text)) {
       clearSolverStatus();
       saveDraft();
@@ -184,11 +180,14 @@ async function importHistory(load, readError) {
   }
 }
 
-pasteHistory.addEventListener("click", () => {
-  void importHistory(async () => {
-    const granted = await chrome.permissions.request({ permissions: ["clipboardRead"] });
-    return granted ? navigator.clipboard.readText() : null;
-  }, "クリップボードを読み取れませんでした。もう一度押すか、履歴ファイルを取り込んでください。");
+historyPasteTarget.addEventListener("paste", (event) => {
+  event.preventDefault();
+  const text = event.clipboardData?.getData("text/plain") ?? "";
+  void importHistory(() => text, "貼り付けたハンド履歴を読み取れませんでした。");
+});
+
+historyPasteTarget.addEventListener("input", () => {
+  historyPasteTarget.value = "";
 });
 
 openFile.addEventListener("click", () => historyFile.click());
@@ -199,7 +198,7 @@ historyFile.addEventListener("change", () => {
 });
 
 function importHistoryFile(files) {
-  if (pasteHistory.disabled || !files.length) return;
+  if (historyPasteTarget.disabled || !files.length) return;
   if (files.length !== 1) {
     status("history-status", "ハンド履歴ファイルを1つずつ取り込んでください。", "error");
     return;
@@ -215,8 +214,8 @@ function importHistoryFile(files) {
 historyPanel.addEventListener("dragover", (event) => {
   if (!event.dataTransfer?.types.includes("Files")) return;
   event.preventDefault();
-  event.dataTransfer.dropEffect = pasteHistory.disabled ? "none" : "copy";
-  if (!pasteHistory.disabled) historyPanel.dataset.dragging = "";
+  event.dataTransfer.dropEffect = historyPasteTarget.disabled ? "none" : "copy";
+  if (!historyPasteTarget.disabled) historyPanel.dataset.dragging = "";
 });
 
 historyPanel.addEventListener("dragleave", (event) => {

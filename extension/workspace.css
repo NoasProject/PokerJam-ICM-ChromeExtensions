@@ -35,9 +35,6 @@
   --accent-text: #ffb0b3;
   --success: #97d8a6;
   --focus: #ff8f94;
-  --inverse: #151718;
-  --light-hover: #e8e8e8;
-  --light-active: #cdcece;
 }
 
 * { box-sizing: border-box; }
@@ -113,12 +110,6 @@ button[data-busy="true"] { cursor: progress; }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-.secondary {
-  margin-top: 12px;
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.secondary:hover:not(:disabled), .secondary:active:not(:disabled) { color: var(--white); }
 .settings-button {
   background: transparent;
   border-color: var(--line);
@@ -177,7 +168,7 @@ th, td {
 }
 tbody tr:last-child > * { border-bottom: 0; }
 thead th { color: var(--muted); }
-th:nth-child(n+3), td:nth-child(n+3) { text-align: right; }
+th:nth-child(n+2), td:nth-child(n+2) { text-align: right; }
 
 .player-counts {
   display: grid;
@@ -273,12 +264,11 @@ small { display: block; margin-top: 5px; }
 .jam-popup :focus-visible { outline-color: var(--focus); }
 
 .jam-popup .history-actions { gap: 8px; margin-top: 0; }
+.jam-popup #history-paste-target { margin-bottom: 8px; }
+.jam-popup #history-paste-target::placeholder { color: var(--muted); }
 .jam-popup .history-actions button { min-height: 36px; }
-.jam-popup .secondary, .jam-popup .settings-button { border-radius: 999px; }
-.jam-popup .secondary { background: var(--white); color: var(--inverse); }
-.jam-popup .secondary:hover:not(:disabled) { background: var(--light-hover); }
-.jam-popup .secondary:active:not(:disabled) { background: var(--light-active); }
 .jam-popup .settings-button {
+  border-radius: 999px;
   padding-inline: 12px;
   background: var(--raised);
   color: var(--ink);
@@ -291,7 +281,7 @@ small { display: block; margin-top: 5px; }
 .jam-popup #itm-count { color: var(--accent-text); }
 .jam-popup .points-summary { padding-block: 10px; }
 .jam-popup .points-value { color: var(--ink); font-size: 17px; }
-.jam-popup .blinds { color: var(--accent-text); }
+.jam-popup .blinds { color: var(--white); }
 .jam-popup .status[data-tone="success"] { color: var(--success); }
 
 .jam-popup .solver-actions {

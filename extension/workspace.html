@@ -58,8 +58,9 @@
 
       <section id="history-panel" aria-labelledby="history-title">
         <h2 id="history-title">ハンド履歴</h2>
+        <input id="history-paste-target" type="text" aria-label="ハンド履歴を貼り付け"
+          placeholder="ここにハンド履歴を貼り付け" autocomplete="off" spellcheck="false">
         <div class="history-actions">
-          <button id="paste-history" type="button" class="secondary">クリップボードから入力</button>
           <button id="open-history-file" type="button" class="settings-button">ファイルを選ぶ</button>
           <input id="history-file" type="file" accept=".txt,.log,.hh,text/plain" hidden>
         </div>
@@ -71,7 +72,7 @@
           <table>
             <caption class="sr-only">開始スタック</caption>
             <thead>
-              <tr><th scope="col">位置</th><th scope="col">プレイヤー</th><th scope="col">チップ</th><th scope="col">BB</th></tr>
+              <tr><th scope="col">位置</th><th scope="col">チップ</th><th scope="col">BB</th></tr>
             </thead>
             <tbody id="players"></tbody>
           </table>

@@ -11,7 +11,6 @@
     "128": "icons/icon-128.png"
   },
   "permissions": ["declarativeContent", "scripting", "storage"],
-  "optional_permissions": ["clipboardRead"],
   "host_permissions": ["https://zenosolver.com/*"],
   "options_page": "options.html",
   "background": {
