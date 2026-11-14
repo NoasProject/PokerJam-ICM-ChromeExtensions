@@ -240,12 +240,20 @@ small { display: block; margin-top: 5px; }
   background: linear-gradient(135deg, var(--heading-red), var(--panel) 82%);
 }
 
+.popup-heading { min-width: 0; }
+
 .jam-popup h1 {
-  min-width: 0;
   font-size: 17px;
   line-height: 1.2;
   letter-spacing: -.025em;
   overflow-wrap: anywhere;
+}
+
+#installed-version {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 
 .jam-popup #check-update { min-height: 36px; }

@@ -36,22 +36,24 @@ function status(id, message = "", tone = "") {
   element.dataset.tone = tone;
 }
 
+const installedVersion = chrome.runtime.getManifest().version;
+byId("installed-version").textContent = `v${installedVersion}`;
+
 checkUpdate.addEventListener("click", async () => {
   checkUpdate.disabled = true;
   updateRelease.hidden = true;
   updateRelease.removeAttribute("href");
   status("update-status", "更新を確認しています…");
   try {
-    const installed = chrome.runtime.getManifest().version;
-    const { version, comparison, url } = await checkForReleaseUpdate(installed);
+    const { version, comparison, url } = await checkForReleaseUpdate(installedVersion);
     if (comparison > 0) {
-      status("update-status", `新しいバージョンがあります（使用中 ${installed} / 公開版 ${version}）`, "success");
+      status("update-status", `新しいバージョンがあります（使用中 ${installedVersion} / 公開版 ${version}）`, "success");
       updateRelease.href = url;
       updateRelease.hidden = false;
     } else if (comparison < 0) {
-      status("update-status", `公開版より新しいバージョンを使用中です（使用中 ${installed} / 公開版 ${version}）`);
+      status("update-status", `公開版より新しいバージョンを使用中です（使用中 ${installedVersion} / 公開版 ${version}）`);
     } else {
-      status("update-status", `最新版を使用中です（${installed}）`, "success");
+      status("update-status", `最新版を使用中です（${installedVersion}）`, "success");
     }
   } catch {
     status("update-status", "公開リリースのバージョンを取得できませんでした。時間をおいて再試行してください。", "error");
