@@ -263,6 +263,17 @@ small { display: block; margin-top: 5px; }
   height: 38px;
   padding: 0;
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  #check-update:disabled > svg {
+    animation: update-icon-spin 1s linear infinite;
+  }
+}
+
+@keyframes update-icon-spin {
+  to { transform: rotate(1turn); }
+}
+
 .update-result .status {
   display: block;
   margin: 0;
