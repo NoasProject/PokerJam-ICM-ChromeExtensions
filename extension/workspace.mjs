@@ -2,6 +2,7 @@ import { parseHandHistories } from "./hand-history.mjs";
 import { calculatePayouts, summarizePoints } from "./payouts.mjs";
 import { estimateFieldAverageBB } from "./field-stacks.mjs";
 import { checkForReleaseUpdate } from "./release-updates.mjs";
+import { isZenoTab } from "./zeno.mjs";
 
 const byId = (id) => document.getElementById(id);
 const MAX_HISTORY_LENGTH = 100000;
@@ -28,6 +29,7 @@ const settings = byId("settings");
 const send = byId("send");
 const sendToast = byId("send-toast");
 const checkUpdate = byId("check-update");
+const openUpdater = byId("open-updater");
 const updateRelease = byId("update-release");
 const historyControls = [historyPasteTarget, openFile, historyFile, historySelect];
 const chipFormat = new Intl.NumberFormat("ja-JP");
@@ -64,6 +66,7 @@ function showUpdateToast(message, tone = "") {
 
 checkUpdate.addEventListener("click", async () => {
   checkUpdate.disabled = true;
+  openUpdater.hidden = true;
   updateRelease.hidden = true;
   updateRelease.removeAttribute("href");
   showUpdateToast("");
@@ -72,6 +75,7 @@ checkUpdate.addEventListener("click", async () => {
     const { version, comparison, url } = await checkForReleaseUpdate(installedVersion);
     if (comparison > 0) {
       status("update-status", `使用中 ${installedVersion} / 公開版 ${version}`);
+      openUpdater.hidden = false;
       updateRelease.href = url;
       updateRelease.hidden = false;
       showUpdateToast("新しいバージョンがあります");
@@ -425,36 +429,38 @@ settings.addEventListener("submit", async (event) => {
   }
 });
 
-let statusChanged = false;
-chrome.storage?.onChanged.addListener((changes, area) => {
-  if (area === "session" && changes.solverStatus?.newValue) {
-    statusChanged = true;
-    showSolverStatus(changes.solverStatus.newValue);
-  }
-});
-
-try {
-  const [{ draft, solverStatus }, { finalTable }] = await Promise.all([
-    chrome.storage.session.get(["draft", "solverStatus"]),
-    chrome.storage.local.get("finalTable"),
-  ]);
-  finalTableInput.checked = (finalTable ?? draft?.finalTable) === true;
-  if (finalTable === undefined && typeof draft?.finalTable === "boolean") saveFinalTablePreference();
-  if (draft) {
-    for (const input of playerCountInputs) {
-      input.value = draft.values[input.id] ?? input.value;
-      // Older drafts may contain exponent notation from the number input.
-      if (input.value && !/^[0-9]+$/.test(input.value)) {
-        const count = Number(input.value);
-        input.value = Number.isSafeInteger(count) && count >= 0 ? String(count) : "";
-      }
+async function restoreWorkspace() {
+  let statusChanged = false;
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "session" && changes.solverStatus?.newValue) {
+      statusChanged = true;
+      showSolverStatus(changes.solverStatus.newValue);
     }
-    if (draft.values.history) readHistory(draft.values.history, draft.selectedHistoryIndex);
+  });
+
+  try {
+    const [{ draft, solverStatus }, { finalTable }] = await Promise.all([
+      chrome.storage.session.get(["draft", "solverStatus"]),
+      chrome.storage.local.get("finalTable"),
+    ]);
+    finalTableInput.checked = (finalTable ?? draft?.finalTable) === true;
+    if (finalTable === undefined && typeof draft?.finalTable === "boolean") saveFinalTablePreference();
+    if (draft) {
+      for (const input of playerCountInputs) {
+        input.value = draft.values[input.id] ?? input.value;
+        // Older drafts may contain exponent notation from the number input.
+        if (input.value && !/^[0-9]+$/.test(input.value)) {
+          const count = Number(input.value);
+          input.value = Number.isSafeInteger(count) && count >= 0 ? String(count) : "";
+        }
+      }
+      if (draft.values.history) readHistory(draft.values.history, draft.selectedHistoryIndex);
+    }
+    if (!statusChanged) showSolverStatus(solverStatus);
+  } catch (error) {
+    showSolverStatus({ state: "error", message: error.message });
   }
-  if (!statusChanged) showSolverStatus(solverStatus);
-} catch (error) {
-  showSolverStatus({ state: "error", message: error.message });
-} finally {
+
   for (const input of playerCountInputs) {
     lastPlayerCountValues.set(input, input.value);
     input.addEventListener("input", () => {
@@ -468,5 +474,13 @@ try {
       }
     });
   }
-  document.querySelector("main").inert = false;
 }
+
+const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
+if (isZenoTab(activeTab)) {
+  await restoreWorkspace();
+  byId("workspace").hidden = false;
+} else {
+  byId("site-guide").hidden = false;
+}
+document.querySelector("main").inert = false;

@@ -13,7 +13,7 @@ function versionParts(version) {
   return parts;
 }
 
-function compareVersions(releaseVersion, installedVersion) {
+export function compareVersions(releaseVersion, installedVersion) {
   const latest = versionParts(releaseVersion);
   const installed = versionParts(installedVersion);
   for (let index = 0; index < 4; index++) {
@@ -23,32 +23,32 @@ function compareVersions(releaseVersion, installedVersion) {
   return 0;
 }
 
-export async function checkForReleaseUpdate(installedVersion, fetcher = fetch) {
-  const options = {
+export async function fetchReleaseFile(path, fetcher = fetch, accept = "application/vnd.github+json") {
+  return fetcher(`${API_REPOSITORY}${path}`, {
     method: "GET",
     credentials: "omit",
     redirect: "error",
     cache: "no-cache",
     signal: AbortSignal.timeout(UPDATE_TIMEOUT_MS),
-  };
-  const release = await fetcher(`${API_REPOSITORY}/releases/latest`, {
-    ...options,
-    headers: { Accept: "application/vnd.github+json" },
+    headers: { Accept: accept },
   });
+}
+
+export async function checkForReleaseUpdate(installedVersion, fetcher = fetch) {
+  const release = await fetchReleaseFile("/releases/latest", fetcher);
   if (!release.ok) throw new Error(`Release request failed (${release.status})`);
   const { tag_name: tag } = await release.json();
   if (typeof tag !== "string" || !tag) throw new Error("Release tag missing");
 
-  const manifestUrl = new URL(`${API_REPOSITORY}/contents/extension/manifest.json`);
-  manifestUrl.searchParams.set("ref", `refs/tags/${tag}`);
-  const manifest = await fetcher(manifestUrl, {
-    ...options,
-    headers: { Accept: "application/vnd.github.raw+json" },
-  });
+  const ref = new URLSearchParams({ ref: `refs/tags/${tag}` });
+  const manifest = await fetchReleaseFile(
+    `/contents/extension/manifest.json?${ref}`, fetcher, "application/vnd.github.raw+json",
+  );
   if (!manifest.ok) throw new Error(`Release manifest request failed (${manifest.status})`);
 
   const { version } = await manifest.json();
   return {
+    tag,
     version,
     comparison: compareVersions(version, installedVersion),
     url: `https://github.com/${REPOSITORY}/releases/tag/${encodeURIComponent(tag)}`,

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PokerJam ICM の更新</title>
+  <link rel="stylesheet" href="workspace.css">
+  <script type="module" src="update-page.mjs"></script>
+</head>
+<body class="update-page">
+  <main>
+    <h1>PokerJam ICM の更新</h1>
+    <p id="update-status" class="status" role="status">公開版を確認しています…</p>
+    <p id="update-hint" hidden>Chromeに読み込んだ拡張機能フォルダを選び、変更を許可してください。更新時に再読み込みするため、ポップアップに取り込んだハンド履歴は消えます。</p>
+    <button id="install-update" type="button" hidden>フォルダを選んで更新</button>
+    <button id="reload-extension" type="button" hidden>拡張機能を再読み込み</button>
+    <p><a id="update-release" target="_blank" rel="noopener noreferrer" hidden>GitHubのリリースを見る</a></p>
+  </main>
+</body>
+</html>

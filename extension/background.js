@@ -1,26 +1,21 @@
-import { fillCurrentZenoTab, isZenoUrl, ZENO_SITE } from "./zeno.mjs";
-
-chrome.runtime.onInstalled.addListener(() => {
-  const { onPageChanged, PageStateMatcher, ShowAction } = chrome.declarativeContent;
-  onPageChanged.removeRules(undefined, () => {
-    if (chrome.runtime.lastError) {
-      console.error(chrome.runtime.lastError.message);
-      return;
-    }
-    onPageChanged.addRules([{
-      id: "zenosolver-only",
-      conditions: [new PageStateMatcher({ pageUrl: { urlPrefix: ZENO_SITE } })],
-      actions: [new ShowAction()],
-    }], () => {
-      if (chrome.runtime.lastError) console.error(chrome.runtime.lastError.message);
-    });
-  });
-});
+import { fillCurrentZenoTab, isZenoTab } from "./zeno.mjs";
 
 let running = false;
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  if (message?.type !== "fill-zeno" || sender.url !== chrome.runtime.getURL("workspace.html")) return;
+  const { action } = chrome.runtime.getManifest();
+  const workspace = chrome.runtime.getURL(action.default_popup);
+  if (message?.type === "reload-after-update" &&
+      sender.url === new URL("update.html", workspace).href) {
+    if (running) {
+      respond({ error: "ZenoSolverへの入力が終わってから再読み込みしてください。" });
+    } else {
+      respond({ ok: true });
+      chrome.runtime.reload();
+    }
+    return;
+  }
+  if (message?.type !== "fill-zeno" || sender.url !== workspace) return;
 
   if (running) {
     respond({ error: "ZenoSolverへの入力を実行中です。" });
@@ -39,7 +34,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 
 async function fillSolver(settings) {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (tab?.id == null || !isZenoUrl(tab.url) || (tab.pendingUrl && !isZenoUrl(tab.pendingUrl))) {
+  if (tab?.id == null || !isZenoTab(tab)) {
     throw new Error("ZenoSolverのタブを開いてからお試しください。");
   }
 

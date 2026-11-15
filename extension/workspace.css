@@ -88,7 +88,7 @@ input, select {
   font: inherit;
 }
 
-button {
+button, .primary-link {
   padding: 8px 13px;
   color: var(--white);
   background: var(--accent);
@@ -98,6 +98,16 @@ button {
   cursor: pointer;
   white-space: nowrap;
 }
+
+.site-guide p { color: var(--muted); }
+.primary-link {
+  display: block;
+  margin-top: 14px;
+  text-align: center;
+  text-decoration: none;
+}
+.primary-link:hover { background: var(--accent-hover); }
+.primary-link:active { background: var(--accent-active); }
 
 button:hover:not(:disabled) { background: var(--accent-hover); }
 button:active:not(:disabled) { background: var(--accent-active); }
@@ -362,6 +372,13 @@ small { display: block; margin-top: 5px; }
   color: var(--accent-text);
   font-weight: 650;
 }
+
+.update-page { width: min(560px, 100%); margin-inline: auto; }
+.update-page main { padding: 28px 18px; }
+.update-page h1 { margin-bottom: 14px; }
+.update-page p:not(:empty) { margin-bottom: 12px; }
+.update-page button { margin-bottom: 12px; }
+.update-page a { color: var(--accent); }
 
 .toast {
   position: absolute;

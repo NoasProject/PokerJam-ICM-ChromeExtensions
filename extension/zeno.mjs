@@ -1,7 +1,11 @@
-export const ZENO_SITE = "https://zenosolver.com/";
+const ZENO_SITE = "https://zenosolver.com/";
 
-export function isZenoUrl(url) {
+function isZenoUrl(url) {
   return typeof url === "string" && url.startsWith(ZENO_SITE);
+}
+
+export function isZenoTab(tab) {
+  return isZenoUrl(tab?.url) && (!tab.pendingUrl || isZenoUrl(tab.pendingUrl));
 }
 
 export async function fillCurrentZenoTab(tabId, settings) {

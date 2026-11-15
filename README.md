@@ -6,9 +6,17 @@ POKER Jamのトーナメントのハンド履歴を使い、ZenoSolverの「カ�
 
 1. Chromeで `chrome://extensions` を開き、右上の「デベロッパー モード」をオンにします。
 2. 「パッケージ化されていない拡張機能を読み込む」を押し、このプロジェクト内の `extension` フォルダを選びます。
-3. `https://zenosolver.com/` を開き、Chromeのツールバーまたは拡張機能メニューで「PokerJam ICM - ZenoSolver」をクリックします。ポップアップはZenoSolverと同じサイト内のページで開けます。
+3. Chromeのツールバーまたは拡張機能メニューで「PokerJam ICM - ZenoSolver」をクリックします。別のサイトにいる場合は、案内の「ZenoSolverを開く」を押し、開いたタブで拡張機能のアイコンをもう一度クリックします。
 
-すでに追加済みの場合は、`chrome://extensions` の拡張機能にある再読み込みボタンを押すと更新されます。
+## GitHubから更新する
+
+1. ポップアップ右上の更新ボタンを押し、新しい版が見つかったら「更新を適用する」を開きます。
+2. 「フォルダを選んで更新」を押し、`chrome://extensions` の「詳細」にある読み込み元と同じ `extension` フォルダを選んで、Chromeに変更を許可します。
+3. 拡張機能が再読み込みされたら、ポップアップ左上のバージョンを確認します。再読み込み時に、ポップアップに取り込んだハンド履歴は消えます。
+
+Chrome Web Storeへの登録や、更新用アプリのインストールは不要です。フォルダへの書き込み許可は更新時にChromeで行います。開発用のGit作業コピーを使っている場合は、ファイルを別のフォルダにコピーしてから、Chromeでそのフォルダを読み込んでください。
+
+「更新を適用する」がない旧版からは、一度だけ[リリース](https://github.com/NoasProject/PokerJam-ICM-ChromeExtensions/releases)の `extension` フォルダの中身を読み込み元にコピーし、`chrome://extensions` で再読み込みしてください。
 
 ## 使い方
 

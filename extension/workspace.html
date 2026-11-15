@@ -24,11 +24,18 @@
     </header>
     <div class="update-result">
       <p id="update-status" class="status" role="status"></p>
+      <a id="open-updater" href="update.html" target="_blank" rel="noopener noreferrer" hidden>更新を適用する</a>
       <a id="update-release" target="_blank" rel="noopener noreferrer" hidden>Releaseページを開く</a>
       <p id="update-toast" class="toast update-toast" role="status"></p>
     </div>
 
-    <div class="layout">
+    <section class="site-guide" id="site-guide" aria-labelledby="site-guide-title" hidden>
+      <h2 id="site-guide-title">ZenoSolverで使う拡張機能です</h2>
+      <p>ZenoSolverを開いてから、この拡張機能のアイコンをもう一度クリックしてください。</p>
+      <a class="primary-link" href="https://zenosolver.com/study" target="_blank" rel="noopener noreferrer">ZenoSolverを開く</a>
+    </section>
+
+    <div class="layout" id="workspace" hidden>
       <section aria-labelledby="settings-title">
         <form id="settings">
           <div class="settings-heading">

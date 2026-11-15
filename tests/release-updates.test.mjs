@@ -18,6 +18,7 @@ function mockRelease(tag, version, manifestStatus = 200) {
 test("uses the Chrome version of the released tag, even if the tag looks older", async () => {
   const { requests, fetcher } = mockRelease("build/v0.0.1", "0.4.10");
   assert.deepEqual(await checkForReleaseUpdate("0.4.9", fetcher), {
+    tag: "build/v0.0.1",
     version: "0.4.10",
     comparison: 1,
     url: `https://github.com/${repository}/releases/tag/build%2Fv0.0.1`,
