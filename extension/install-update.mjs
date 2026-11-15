@@ -1,46 +1,11 @@
-import { compareVersions, fetchReleaseFile } from "./release-updates.mjs";
+import { compareVersions, fetchReleaseArchive } from "./release-updates.mjs";
+import { extractReleaseFiles } from "./release-zip.mjs";
 
 const MANIFEST = "manifest.json";
-const MAX_RELEASE_SIZE = 5 * 1024 * 1024;
-const MAX_RELEASE_FILES = 100;
 
 async function downloadUpdate({ tag, version }, fetcher) {
-  const tree = await fetchReleaseFile(`/git/trees/${encodeURIComponent(`refs/tags/${tag}`)}?recursive=1`, fetcher);
-  if (!tree.ok) throw new Error(`更新ファイルの一覧を取得できませんでした（${tree.status}）。`);
-  const { tree: entries, truncated } = await tree.json();
-  if (truncated || !Array.isArray(entries)) throw new Error("更新ファイルの一覧が不完全です。");
-
-  const files = entries.filter(({ path, type }) => path?.startsWith("extension/") && type !== "tree");
-  const names = new Set();
-  let totalSize = 0;
-  for (const file of files) {
-    const name = file.path.slice("extension/".length);
-    if (file.type !== "blob" || file.mode !== "100644" || !/^[a-f0-9]{40}$/.test(file.sha) ||
-        !Number.isSafeInteger(file.size) || file.size < 0 ||
-        !name.split("/").every((part) => /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(part)) ||
-        names.has(name.toLowerCase())) {
-      throw new Error("更新に対応していないファイルが含まれています。");
-    }
-    names.add(name.toLowerCase());
-    totalSize += file.size;
-  }
-  if (!names.has(MANIFEST) || files.length > MAX_RELEASE_FILES || totalSize > MAX_RELEASE_SIZE) {
-    throw new Error("更新ファイルの構成を確認できませんでした。");
-  }
-
-  const contents = new Map();
-  for (let index = 0; index < files.length; index += 6) {
-    await Promise.all(files.slice(index, index + 6).map(async ({ path, sha, size }) => {
-      const response = await fetchReleaseFile(`/git/blobs/${sha}`, fetcher, "application/vnd.github.raw+json");
-      if (!response.ok) throw new Error(`更新ファイルを取得できませんでした（${response.status}）。`);
-      const bytes = await response.arrayBuffer();
-      const blob = new Blob([`blob ${bytes.byteLength}\0`, bytes]);
-      const digest = await crypto.subtle.digest("SHA-1", await blob.arrayBuffer());
-      const actualSha = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-      if (bytes.byteLength !== size || actualSha !== sha) throw new Error("更新ファイルが公開版と一致しません。");
-      contents.set(path.slice("extension/".length), bytes);
-    }));
-  }
+  const { body, prefix } = await fetchReleaseArchive(tag, fetcher);
+  const contents = await extractReleaseFiles(body, prefix);
   const manifest = JSON.parse(new TextDecoder().decode(contents.get(MANIFEST)));
   if (manifest.version !== version) throw new Error("更新ファイルのバージョンが公開版と一致しません。");
   return { manifest, contents };

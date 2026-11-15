@@ -1,7 +1,7 @@
 import { parseHandHistories } from "./hand-history.mjs";
 import { calculatePayouts, summarizePoints } from "./payouts.mjs";
 import { estimateFieldAverageBB } from "./field-stacks.mjs";
-import { checkForReleaseUpdate } from "./release-updates.mjs";
+import { checkForReleaseUpdate, rememberCheckedRelease } from "./release-updates.mjs";
 import { isZenoTab } from "./zeno.mjs";
 
 const byId = (id) => document.getElementById(id);
@@ -72,8 +72,10 @@ checkUpdate.addEventListener("click", async () => {
   showUpdateToast("");
   status("update-status", "更新を確認しています…");
   try {
-    const { version, comparison, url } = await checkForReleaseUpdate(installedVersion);
+    const release = await checkForReleaseUpdate(installedVersion);
+    const { version, comparison, url } = release;
     if (comparison > 0) {
+      rememberCheckedRelease(release);
       status("update-status", `使用中 ${installedVersion} / 公開版 ${version}`);
       openUpdater.hidden = false;
       updateRelease.href = url;
