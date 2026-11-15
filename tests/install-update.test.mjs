@@ -29,12 +29,14 @@ function fakeRelease(version = release.version) {
 
 function fakeDirectory(entries = new Map(), failWrite = () => false, prefix = "") {
   return {
-    async getDirectoryHandle(name) {
+    async getDirectoryHandle(name, { create } = {}) {
+      if (!create && !entries.has(name)) throw new DOMException("Folder not found", "NotFoundError");
       if (!entries.has(name)) entries.set(name, new Map());
+      if (!(entries.get(name) instanceof Map)) throw new DOMException("Not a folder", "TypeMismatchError");
       return fakeDirectory(entries.get(name), failWrite, `${prefix}${name}/`);
     },
     async getFileHandle(name, { create } = {}) {
-      if (!create && !entries.has(name)) throw new Error("File not found");
+      if (!create && !entries.has(name)) throw new DOMException("File not found", "NotFoundError");
       return {
         async getFile() { return new Blob([entries.get(name)]); },
         async createWritable() {
@@ -68,6 +70,33 @@ test("switches the root manifest to the staged release and supports updating aga
   const later = { version: "0.0.100", tag: "v0.0.100" };
   await installUpdate(folder, later, next, async (name) => entries.get(name), fakeRelease(later.version).fetcher);
   assert.equal(JSON.parse(entries.get("manifest.json")).version, later.version);
+});
+
+test("accepts the parent folder and returns the immediate extension folder for reuse", async () => {
+  const original = JSON.stringify(installed);
+  const entries = new Map([["manifest.json", original]]);
+  const parent = new Map([["extension", entries], ["README.md", "readme"]]);
+  const fetchPackage = async (name) => entries.get(name);
+  const folder = await installUpdate(fakeDirectory(parent), release, installed, fetchPackage, fakeRelease().fetcher);
+  const next = JSON.parse(entries.get("manifest.json"));
+  assert.equal(next.version, release.version);
+  assert.deepEqual([...parent.keys()], ["extension", "README.md"]);
+  assert.equal(parent.get("README.md"), "readme");
+
+  const later = { version: "0.0.100", tag: "v0.0.100" };
+  await installUpdate(folder, later, next, fetchPackage, fakeRelease(later.version).fetcher);
+  assert.equal(JSON.parse(entries.get("manifest.json")).version, later.version);
+});
+
+test("rejects a parent containing an extension copy or a folder more than one level above", async () => {
+  const original = JSON.stringify(installed);
+  const entries = new Map([["manifest.json", original]]);
+  const parent = new Map([["extension", entries]]);
+  const outer = new Map([["project", parent]]);
+  const { fetcher } = fakeRelease();
+  await assert.rejects(installUpdate(fakeDirectory(parent), release, installed, async () => null, fetcher), /読み込んでいる/);
+  await assert.rejects(installUpdate(fakeDirectory(outer), release, installed, async (name) => entries.get(name), fetcher), /読み込んでいる/);
+  assert.deepEqual(outer, new Map([["project", new Map([["extension", new Map([["manifest.json", original]])]])]]));
 });
 
 test("keeps the current release when choosing a different copy, downloading a corrupt file, or failing to write", async () => {

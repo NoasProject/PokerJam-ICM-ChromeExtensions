@@ -7,14 +7,22 @@
   <link rel="stylesheet" href="workspace.css">
   <script type="module" src="update-page.mjs"></script>
 </head>
-<body class="update-page">
+<body class="jam-popup update-popup">
   <main>
-    <h1>PokerJam ICM の更新</h1>
-    <p id="update-status" class="status" role="status">公開版を確認しています…</p>
-    <p id="update-hint" hidden>Chromeに読み込んだ拡張機能フォルダを選び、変更を許可してください。更新時に再読み込みするため、ポップアップに取り込んだハンド履歴は消えます。</p>
-    <button id="install-update" type="button" hidden>フォルダを選んで更新</button>
-    <button id="reload-extension" type="button" hidden>拡張機能を再読み込み</button>
-    <p><a id="update-release" target="_blank" rel="noopener noreferrer" hidden>GitHubのリリースを見る</a></p>
+    <header>
+      <h1 id="update-title">PokerJam ICM の更新</h1>
+      <button id="back-to-workspace" class="settings-button" type="button">戻る</button>
+    </header>
+    <section aria-labelledby="update-title">
+      <p id="update-status" class="status" role="status">公開版を確認しています…</p>
+      <p id="update-hint" hidden>初回は、Chromeに読み込んだ <code>extension</code> フォルダか、その1つ上のフォルダを選び、書き込みを許可してください。次回は読み込み元を自動で使います。更新時に、ポップアップに取り込んだハンド履歴は消えます。</p>
+      <div class="update-actions">
+        <button id="install-update" type="button" hidden>更新する</button>
+        <button id="pick-update-folder" type="button" hidden>フォルダを選んで更新</button>
+        <button id="reload-extension" type="button" hidden>拡張機能を再読み込み</button>
+      </div>
+      <a id="update-release" target="_blank" rel="noopener noreferrer" hidden>GitHubのリリースを見る</a>
+    </section>
   </main>
 </body>
 </html>

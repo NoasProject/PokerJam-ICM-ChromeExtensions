@@ -373,12 +373,12 @@ small { display: block; margin-top: 5px; }
   font-weight: 650;
 }
 
-.update-page { width: min(560px, 100%); margin-inline: auto; }
-.update-page main { padding: 28px 18px; }
-.update-page h1 { margin-bottom: 14px; }
-.update-page p:not(:empty) { margin-bottom: 12px; }
-.update-page button { margin-bottom: 12px; }
-.update-page a { color: var(--accent); }
+.update-popup section { display: grid; gap: 10px; }
+.update-popup .status { margin: 0; }
+.update-popup #update-hint { color: var(--muted); }
+.update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.update-actions:not(:has(button:not([hidden]))) { display: none; }
+.update-popup a { justify-self: start; color: var(--accent-text); }
 
 .toast {
   position: absolute;

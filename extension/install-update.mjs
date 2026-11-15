@@ -58,12 +58,19 @@ async function writeFile(folder, name, contents) {
   }
 }
 
-async function verifyInstallFolder(folder, installed, fetchPackageFile) {
-  const file = await folder.getFileHandle(MANIFEST).catch(() => null);
-  const manifest = file && JSON.parse(await (await file.getFile()).text());
+async function isInstallFolder(folder, installed, fetchPackageFile) {
+  let manifest;
+  try {
+    const handle = await folder.getFileHandle(MANIFEST);
+    const file = await handle.getFile();
+    manifest = JSON.parse(await file.text());
+  } catch (error) {
+    if (error.name === "NotFoundError" || error.name === "TypeMismatchError" || error instanceof SyntaxError) return false;
+    throw error;
+  }
   if (manifest?.name !== installed.name || manifest?.version !== installed.version ||
       manifest?.background?.service_worker !== installed.background.service_worker) {
-    throw new Error("Chromeが現在読み込んでいる拡張機能フォルダを選んでください。");
+    return false;
   }
 
   // A copy of the same version can have an identical manifest. Check which folder Chrome actually serves.
@@ -71,16 +78,25 @@ async function verifyInstallFolder(folder, installed, fetchPackageFile) {
   const probe = `pokerjam-update-${token}.txt`;
   try {
     await writeFile(folder, probe, token);
-    if (await fetchPackageFile(probe).catch(() => null) !== token) {
-      throw new Error("Chromeが現在読み込んでいる拡張機能フォルダを選んでください。");
-    }
+    return await fetchPackageFile(probe).catch(() => null) === token;
   } finally {
     await folder.removeEntry(probe).catch(() => {});
   }
 }
 
-export async function installUpdate(folder, release, installed, fetchPackageFile, fetcher = fetch) {
-  await verifyInstallFolder(folder, installed, fetchPackageFile);
+async function findInstallFolder(selectedFolder, installed, fetchPackageFile) {
+  if (await isInstallFolder(selectedFolder, installed, fetchPackageFile)) return selectedFolder;
+
+  const child = await selectedFolder.getDirectoryHandle("extension").catch((error) => {
+    if (error.name === "NotFoundError" || error.name === "TypeMismatchError") return null;
+    throw error;
+  });
+  if (child && await isInstallFolder(child, installed, fetchPackageFile)) return child;
+  throw new Error("Chromeが現在読み込んでいるフォルダか、そのフォルダを含む1つ上のフォルダを選んでください。");
+}
+
+export async function installUpdate(selectedFolder, release, installed, fetchPackageFile, fetcher = fetch) {
+  const folder = await findInstallFolder(selectedFolder, installed, fetchPackageFile);
   const { manifest, contents } = await downloadUpdate(release, fetcher);
   if (manifest.name !== installed.name || manifest.key !== installed.key || manifest.manifest_version !== 3 ||
       compareVersions(manifest.version, installed.version) <= 0) {
@@ -134,4 +150,5 @@ export async function installUpdate(folder, release, installed, fetchPackageFile
     await versions.removeEntry(folderName, { recursive: true }).catch(() => {});
     throw error;
   }
+  return folder;
 }
