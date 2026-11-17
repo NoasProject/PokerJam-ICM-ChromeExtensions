@@ -1,30 +1,75 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { crc32, deflateRawSync } from "node:zlib";
 import { installUpdate } from "../extension/install-update.mjs";
 
 const installed = JSON.parse(await readFile(new URL("../extension/manifest.json", import.meta.url), "utf8"));
 const release = { version: "0.0.99", tag: "v0.0.99" };
+const sha = "d7f4dea2a6fbf3cf3f83bb943038d3d3d5961324";
+const repository = "NoasProject/PokerJam-ICM-ChromeExtensions";
+const archiveRoot = `PokerJam-ICM-ChromeExtensions-${sha}`;
 
-function fakeRelease(version = release.version) {
+function makeZip(files) {
+  const local = [];
+  const directory = [];
+  const dataOffsets = new Map();
+  let offset = 0;
+  for (const [path, contents] of files) {
+    const name = Buffer.from(path);
+    const bytes = Buffer.from(contents);
+    const method = path.endsWith(".js") ? 0 : 8;
+    const compressed = method === 0 ? bytes : deflateRawSync(bytes);
+    const checksum = crc32(bytes);
+    const header = Buffer.alloc(30);
+    header.writeUInt32LE(0x04034b50, 0);
+    header.writeUInt16LE(method, 8);
+    header.writeUInt32LE(checksum, 14);
+    header.writeUInt32LE(compressed.length, 18);
+    header.writeUInt32LE(bytes.length, 22);
+    header.writeUInt16LE(name.length, 26);
+    dataOffsets.set(path, offset + header.length + name.length);
+    local.push(header, name, compressed);
+
+    const entry = Buffer.alloc(46);
+    entry.writeUInt32LE(0x02014b50, 0);
+    entry.writeUInt16LE(method, 10);
+    entry.writeUInt32LE(checksum, 16);
+    entry.writeUInt32LE(compressed.length, 20);
+    entry.writeUInt32LE(bytes.length, 24);
+    entry.writeUInt16LE(name.length, 28);
+    entry.writeUInt32LE(offset, 42);
+    directory.push(entry, name);
+    offset += header.length + name.length + compressed.length;
+  }
+  const central = Buffer.concat(directory);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(files.size, 8);
+  end.writeUInt16LE(files.size, 10);
+  end.writeUInt32LE(central.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return { archive: Buffer.concat([...local, central, end]), dataOffsets };
+}
+
+function fakeRelease(version = release.version, additionalFiles = []) {
   const manifest = { ...installed, version };
-  const files = new Map([["manifest.json", JSON.stringify(manifest)]]);
+  const prefix = `${archiveRoot}/extension/`;
+  const files = new Map([[`${prefix}manifest.json`, JSON.stringify(manifest)],
+    [`${archiveRoot}/README.md`, "release readme"], ...additionalFiles]);
   const paths = [manifest.background.service_worker, manifest.action.default_popup,
     ...Object.values(manifest.icons), ...Object.values(manifest.action.default_icon)];
-  for (const path of paths) files.set(path, `released: ${path}`);
-  const blobs = new Map();
-  const tree = Array.from(files, ([path, content]) => {
-    const size = Buffer.byteLength(content);
-    const sha = createHash("sha1").update(`blob ${size}\0`).update(content).digest("hex");
-    blobs.set(sha, content);
-    return { path: `extension/${path}`, type: "blob", mode: "100644", size, sha };
-  });
-  const fetcher = async (url) => {
-    if (url.includes("/git/trees/")) return Response.json({ tree });
-    return new Response(blobs.get(url.split("/").at(-1)), { status: 200 });
+  for (const path of paths) files.set(`${prefix}${path}`, `released: ${path}`);
+  const { archive, dataOffsets } = makeZip(files);
+  const requests = [];
+  const fetcher = async (url, options) => {
+    requests.push(String(url));
+    assert.equal(options.credentials, "omit");
+    if (url.startsWith(`https://api.github.com/repos/${repository}/commits/`)) return Response.json({ sha });
+    assert.equal(url, `https://codeload.github.com/${repository}/zip/${sha}`);
+    return new Response(archive);
   };
-  return { fetcher, tree, blobs };
+  return { fetcher, archive, dataOffsets, requests };
 }
 
 function fakeDirectory(entries = new Map(), failWrite = () => false, prefix = "") {
@@ -57,14 +102,20 @@ function fakeDirectory(entries = new Map(), failWrite = () => false, prefix = ""
 }
 
 test("switches the root manifest to the staged release and supports updating again", async () => {
-  const { fetcher } = fakeRelease();
+  const { fetcher, requests } = fakeRelease();
   const entries = new Map([["manifest.json", JSON.stringify(installed)]]);
   const folder = fakeDirectory(entries);
   await installUpdate(folder, release, installed, async (name) => entries.get(name), fetcher);
   const next = JSON.parse(entries.get("manifest.json"));
   assert.equal(next.version, release.version);
   const [, directory, file] = next.background.service_worker.split("/");
-  assert.equal(entries.get("versions").get(directory).get(file), `released: ${installed.background.service_worker}`);
+  const staged = entries.get("versions").get(directory);
+  assert.equal(staged.get(file), `released: ${installed.background.service_worker}`);
+  assert.equal(staged.has("README.md"), false);
+  assert.deepEqual(requests, [
+    `https://api.github.com/repos/${repository}/commits/refs%2Ftags%2F${release.tag}`,
+    `https://codeload.github.com/${repository}/zip/${sha}`,
+  ]);
   assert.equal(entries.size, 2);
 
   const later = { version: "0.0.100", tag: "v0.0.100" };
@@ -102,19 +153,29 @@ test("rejects a parent containing an extension copy or a folder more than one le
 test("keeps the current release when choosing a different copy, downloading a corrupt file, or failing to write", async () => {
   const original = JSON.stringify(installed);
   const entries = new Map([["manifest.json", original]]);
-  const { tree, blobs, fetcher } = fakeRelease();
+  const { archive, dataOffsets, fetcher } = fakeRelease();
   const folder = fakeDirectory(entries);
   await assert.rejects(installUpdate(folder, release, installed, async () => null, fetcher), /読み込んでいる/);
   const fetchPackage = async (name) => entries.get(name);
-  const path = tree.find(({ path }) => path === `extension/${installed.background.service_worker}`);
-  const valid = blobs.get(path.sha);
-  blobs.set(path.sha, "corrupt");
-  await assert.rejects(installUpdate(folder, release, installed, fetchPackage, fetcher), /一致しません/);
+  const offset = dataOffsets.get(`${archiveRoot}/extension/${installed.background.service_worker}`);
+  archive[offset] ^= 1;
+  await assert.rejects(installUpdate(folder, release, installed, fetchPackage, fetcher), /破損しています/);
   assert.deepEqual(entries, new Map([["manifest.json", original]]));
 
-  blobs.set(path.sha, valid);
+  archive[offset] ^= 1;
   const readOnlyManifest = fakeDirectory(entries, (name) => name === "manifest.json");
   await assert.rejects(installUpdate(readOnlyManifest, release, installed, fetchPackage, fetcher), /Write failed/);
   assert.equal(entries.get("manifest.json"), original);
   assert.equal(entries.get("versions").size, 0);
+});
+
+test("rejects archive entries that escape the extension folder or collide on disk", async () => {
+  const original = JSON.stringify(installed);
+  const entries = new Map([["manifest.json", original]]);
+  for (const path of ["../outside.js", "MANIFEST.JSON", "manifest.json."]) {
+    const { fetcher } = fakeRelease(release.version, [[`${archiveRoot}/extension/${path}`, "invalid"]]);
+    await assert.rejects(installUpdate(fakeDirectory(entries), release, installed, async (name) => entries.get(name), fetcher),
+      /対応していないファイル/);
+    assert.deepEqual(entries, new Map([["manifest.json", original]]));
+  }
 });

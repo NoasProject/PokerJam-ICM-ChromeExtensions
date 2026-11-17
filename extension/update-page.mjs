@@ -1,5 +1,5 @@
 import { installUpdate } from "./install-update.mjs";
-import { checkForReleaseUpdate } from "./release-updates.mjs";
+import { checkForReleaseUpdate, readCheckedRelease } from "./release-updates.mjs";
 import { loadUpdateFolder, saveUpdateFolder } from "./update-folder.mjs";
 
 const status = document.getElementById("update-status");
@@ -85,7 +85,7 @@ async function applyUpdate(chooseFolder) {
 }
 
 try {
-  release = await checkForReleaseUpdate(installed.version);
+  release = readCheckedRelease(installed.version) ?? await checkForReleaseUpdate(installed.version);
   link.href = release.url;
   link.hidden = false;
   if (release.comparison === 0) {

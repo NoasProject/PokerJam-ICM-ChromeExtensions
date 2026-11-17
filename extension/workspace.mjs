@@ -1,8 +1,12 @@
 import { parseHandHistories } from "./hand-history.mjs";
 import { calculatePayouts, summarizePoints } from "./payouts.mjs";
 import { estimateFieldAverageBB } from "./field-stacks.mjs";
-import { checkForReleaseUpdate } from "./release-updates.mjs";
+import { checkForReleaseUpdate, rememberCheckedRelease } from "./release-updates.mjs";
 import { isZenoTab } from "./zeno.mjs";
+import { isGtoWizardTab, MAX_GTO_WIZARD_ENTRIES } from "./gto-wizard.mjs";
+
+const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
+const usingGtoWizard = isGtoWizardTab(activeTab);
 
 const byId = (id) => document.getElementById(id);
 const MAX_HISTORY_LENGTH = 100000;
@@ -72,8 +76,10 @@ checkUpdate.addEventListener("click", async () => {
   showUpdateToast("");
   status("update-status", "更新を確認しています…");
   try {
-    const { version, comparison, url } = await checkForReleaseUpdate(installedVersion);
+    const release = await checkForReleaseUpdate(installedVersion);
+    const { version, comparison, url } = release;
     if (comparison > 0) {
+      rememberCheckedRelease(release);
       status("update-status", `使用中 ${installedVersion} / 公開版 ${version}`);
       openUpdater.hidden = false;
       updateRelease.href = url;
@@ -142,6 +148,8 @@ function updateSettings() {
     error = `残り人数はハンド履歴の着席人数（${seated}人）以上にしてください。`;
   } else if (Number.isFinite(entries) && remaining > entries) {
     error = finalTable ? `総エントリー数はハンド履歴の着席人数（${seated}人）以上にしてください。` : "残り人数は総エントリー数以下にしてください。";
+  } else if (usingGtoWizard && entries > MAX_GTO_WIZARD_ENTRIES) {
+    error = `GTO Wizardに入力できる総エントリー数は${MAX_GTO_WIZARD_ENTRIES.toLocaleString("ja-JP")}人までです。`;
   }
   status("settings-status", error, error ? "error" : "");
 
@@ -291,7 +299,7 @@ function showSolverStatus(result) {
 
   hideSuccessToast();
   if (busy) {
-    status("send-status", "カスタムプリフロップツリーに入力しています…");
+    status("send-status", "フォームに入力しています…");
   } else if (solverState === "error") {
     status("send-status", result.message, "error");
   } else {
@@ -409,7 +417,7 @@ settings.addEventListener("submit", async (event) => {
 
   sending = true;
   try {
-    const payouts = calculatePayouts(entries, remaining);
+    const payouts = calculatePayouts(entries, usingGtoWizard ? entries : remaining);
     const solverHand = {
       smallBlindBB: hand.smallBlindBB,
       ante: { type: hand.ante.type, bb: hand.ante.bb },
@@ -417,8 +425,10 @@ settings.addEventListener("submit", async (event) => {
     };
     showSolverStatus({ state: "running" });
     const result = await chrome.runtime.sendMessage({
-      type: "fill-zeno",
-      settings: { hand: solverHand, payouts, field },
+      type: "fill-solver",
+      tabId: activeTab.id,
+      solver: usingGtoWizard ? "gto-wizard" : "zeno",
+      settings: { hand: solverHand, payouts, entries, remaining, field },
     });
     if (result?.error) throw new Error(result.error);
     showSolverStatus(result);
@@ -476,8 +486,8 @@ async function restoreWorkspace() {
   }
 }
 
-const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
-if (isZenoTab(activeTab)) {
+if (usingGtoWizard || isZenoTab(activeTab)) {
+  if (usingGtoWizard) send.textContent = "GTO WizardのCustom Solutionsに入力";
   await restoreWorkspace();
   byId("workspace").hidden = false;
 } else {
