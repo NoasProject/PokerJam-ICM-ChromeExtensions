@@ -77,6 +77,18 @@ export async function fillGtoWizardForm({ hand, entries, remaining, payouts, fie
       element.dispatchEvent(new InputEvent("input", { bubbles: true, data, inputType: "insertReplacementText" }));
     }
 
+    function finishEdit(element) {
+      let focusLeft = false;
+      const onFocusOut = () => { focusLeft = true; };
+      element.addEventListener("focusout", onFocusOut);
+      element.blur();
+      element.removeEventListener("focusout", onFocusOut);
+      // When the Chrome popup owns focus, blur() can leave the page without a focusout event.
+      if (!focusLeft && element.isConnected) {
+        element.dispatchEvent(new FocusEvent("focusout", { bubbles: true, composed: true }));
+      }
+    }
+
     async function write(selector, value, label, { committed, prepare } = {}) {
       const applied = () => valueOf(input(selector)) === value && (!committed || committed());
       let found = false;
@@ -94,20 +106,28 @@ export async function fillGtoWizardForm({ hand, entries, remaining, payouts, fie
         target.focus({ preventScroll: true });
         editValue(target, value);
         await pause();
-        target.blur();
+        finishEdit(target);
         if (await poll(applied, timeout)) return;
       }
       throw new Error(found ? `GTO Wizardの「${label}」に ${value} を反映できませんでした。` :
         `GTO Wizardの「${label}」欄が見つかりませんでした。`);
     }
 
-    async function choose(option, selectedLabel = option, autofillValue) {
+    function comboboxAutofill(combo) {
+      const field = combo?.parentElement?.querySelector('input[id$="-hidden-input"][aria-hidden="true"]');
+      if (field?.type === "text") return field;
+    }
+
+    function choiceMatches(combo, label, value) {
+      const field = comboboxAutofill(combo);
+      return text(combo) === label && combo.getAttribute("aria-expanded") === "false" &&
+        (!field || field.value === value);
+    }
+
+    async function choose(option, autofillValue, selectedLabel = option) {
       const combobox = () => input('[role="combobox"]');
       const selectionError = `GTO Wizardで「${selectedLabel}」を選べませんでした。`;
-      const applied = () => {
-        const combo = combobox();
-        return text(combo) === selectedLabel && combo.getAttribute("aria-expanded") === "false";
-      };
+      const applied = () => choiceMatches(combobox(), selectedLabel, autofillValue);
       const findOption = () => {
         const listbox = document.getElementById(combobox()?.getAttribute("aria-controls") ?? "");
         return Array.from(listbox?.querySelectorAll('[role="option"]') ?? [])
@@ -125,8 +145,8 @@ export async function fillGtoWizardForm({ hand, entries, remaining, payouts, fie
 
       const combo = await readyCombobox();
       if (applied()) return;
-      const autofill = combo.parentElement?.querySelector('input[id$="-hidden-input"][aria-hidden="true"]');
-      if (autofillValue && autofill?.type === "text" && !autofill.disabled && !autofill.readOnly) {
+      const autofill = comboboxAutofill(combo);
+      if (autofill && !autofill.disabled && !autofill.readOnly) {
         if (combo.getAttribute("aria-expanded") !== "true") combo.click();
         // The select's autofill handler accepts registered option values without moving focus.
         if (await poll(findOption, 700)) {
@@ -178,16 +198,50 @@ export async function fillGtoWizardForm({ hand, entries, remaining, payouts, fie
 
     const tournaments = button(dialog, "Tournaments");
     if (!tournaments) throw new Error("GTO Wizardの「Tournaments」が見つかりませんでした。");
-    if (tournaments.getAttribute("aria-pressed") !== "true") tournaments.click();
+    const switchingToTournaments = tournaments.getAttribute("aria-pressed") !== "true";
+    if (switchingToTournaments) tournaments.click();
     await openTab("tournamentDetails", "Tournament Details");
+    if (switchingToTournaments) await waitForTournamentSetup();
+
+    async function waitForTournamentSetup() {
+      // The editable panel appears before Wizard finishes restoring its tournament settings.
+      // Give those settings time to settle before our first edit can cancel that fetch.
+      const quietPeriod = 750;
+      let previous;
+      let changedAt = Date.now();
+      await poll(() => {
+        const current = panel();
+        if (!current) return;
+        const state = JSON.stringify([
+          current.id,
+          dialog.querySelector(tab("tournamentDetails"))?.textContent,
+          current.querySelector('[role="combobox"]')?.textContent,
+          current.querySelector("#holdem-total-entrants")?.value,
+          current.querySelector("#holdem-players-paid")?.value,
+          current.querySelector('input[data-payout-field="prize"]')?.value,
+        ]);
+        if (state !== previous) {
+          previous = state;
+          changedAt = Date.now();
+        }
+        return Date.now() - changedAt >= quietPeriod;
+      }, 3500);
+    }
+
     const isIcm = () => /ICM\b/.test(dialog.querySelector(tab("tournamentDetails"))?.textContent ?? "");
     const entrantsField = "#holdem-total-entrants";
-    const tournamentHeaderMatch = () => isIcm() && text(input('[role="combobox"]')) === "STD" &&
+    const tournamentHeaderMatch = () => isIcm() && choiceMatches(input('[role="combobox"]'), "STD", "NORMAL") &&
       valueOf(input(entrantsField)) === entries;
     const placesPaid = () => valueOf(input("#holdem-players-paid"));
     const payoutRows = () => panel().querySelectorAll("[data-payout-row-key]");
     const prizeField = (start) => `input[data-payout-field="prize"][aria-label="Prize for place ${start}"]`;
     const lastPlaceField = (start) => `input[data-payout-field="end"][aria-label="Last place of the row that starts at place ${start}"]`;
+    function prizeValueMatches(start, amount) {
+      const prize = input(prizeField(start));
+      // Base UI keeps the displayed draft and the numeric form value in separate inputs.
+      const numeric = prize?.parentElement?.parentElement?.querySelector('input[type="number"][aria-hidden="true"]');
+      return valueOf(prize) === amount && (!numeric || valueOf(numeric) === amount);
+    }
     const prizeGroups = [];
     for (let start = 1; start <= payouts.length;) {
       let end = start;
@@ -203,7 +257,7 @@ export async function fillGtoWizardForm({ hand, entries, remaining, payouts, fie
         icm.click();
         await waitFor(isIcm, "GTO Wizardで「ICM」を選べませんでした。");
       }
-      await choose("Standard", "STD", "NORMAL");
+      await choose("Standard", "NORMAL", "STD");
       if (tournamentDetailsMatch()) return;
       if (placesPaid() > 1 || payoutRows().length > 1) {
         const clear = button(panel(), "Clear");
@@ -225,7 +279,7 @@ export async function fillGtoWizardForm({ hand, entries, remaining, payouts, fie
       for (const { start, end, amount } of prizeGroups) {
         if (!tournamentHeaderMatch()) throw new Error("GTO Wizardのトーナメント形式または総エントリー数が戻りました。");
         await write(prizeField(start), amount, `${start}位の賞金`, {
-          committed: () => placesPaid() === start,
+          committed: () => placesPaid() === start && prizeValueMatches(start, amount),
           prepare: addPlace,
         });
         if (end > start) {
@@ -254,7 +308,7 @@ export async function fillGtoWizardForm({ hand, entries, remaining, payouts, fie
         placesPaid() === payouts.length && payoutRows().length === prizeGroups.length &&
         prizeGroups.every(({ start, end, amount }) => {
           const lastPlace = input(lastPlaceField(start));
-          return valueOf(input(prizeField(start))) === amount && lastPlace &&
+          return prizeValueMatches(start, amount) && lastPlace &&
             (valueOf(lastPlace) === end || (start === end && lastPlace.value.trim() === ""));
         });
     }
@@ -283,9 +337,22 @@ export async function fillGtoWizardForm({ hand, entries, remaining, payouts, fie
     };
     await waitFor(positionsMatch, "GTO Wizardの席順がハンド履歴と一致しませんでした。");
     await write("#holdem-players-remaining", remaining, "Players Left");
-    await write('input[aria-label="Small blind in big blinds"]', smallBlind, "SB/BB");
-    await choose({ none: "No Ante", ante: "Per player", bba: "BB Ante" }[hand.ante.type]);
-    if (hand.ante.type !== "none") await write("#holdem-ante", ante, "Ante");
+    const smallBlindField = 'input[aria-label="Small blind in big blinds"]';
+    await write(smallBlindField, smallBlind, "SB/BB");
+    const [anteLabel, anteValue] = {
+      none: ["No Ante", "NO_ANTE"],
+      ante: ["Per player", "PER_PLAYER"],
+      bba: ["BB Ante", "BB_ANTE"],
+    }[hand.ante.type];
+    const anteField = "#holdem-ante";
+    const anteMatches = () => choiceMatches(input('[role="combobox"]'), anteLabel, anteValue) &&
+      (hand.ante.type === "none" || valueOf(input(anteField)) === ante);
+    async function writeAnte() {
+      await choose(anteLabel, anteValue);
+      if (hand.ante.type !== "none") await write(anteField, ante, "Ante");
+    }
+
+    await writeAnte();
     for (const { position, bb } of stacks) {
       await write(`input[id="holdem-preflop-stack-${position}"]`, bb, `${position}のスタック`);
     }
@@ -312,6 +379,9 @@ export async function fillGtoWizardForm({ hand, entries, remaining, payouts, fie
       if (!tournamentDetailsMatch()) throw new Error("GTO Wizardの総エントリー数と賞金の反映を確認できませんでした。");
     }
     await openTab("handDetails", "Hand Details");
+    if (!anteMatches()) await writeAnte();
+    if (!anteMatches()) throw new Error("GTO Wizardのアンティの反映を確認できませんでした。");
+    if (valueOf(input(smallBlindField)) !== smallBlind) throw new Error("GTO WizardのSB/BBの反映を確認できませんでした。");
     if (valueOf(input("#holdem-players-remaining")) !== remaining || !positionsMatch() ||
         stackInputs().some((element, index) => valueOf(element) !== stacks[index].bb)) {
       throw new Error("GTO Wizardに反映された残り人数やスタックを確認してください。");
