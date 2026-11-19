@@ -61,8 +61,17 @@
           <p id="settings-status" class="status" role="status"></p>
           <small id="estimated-average" role="status" hidden></small>
 
+          <div class="point-formula-setting">
+            <label for="point-formula">ポイント計算式</label>
+            <select id="point-formula">
+              <button type="button"><selectedcontent></selectedcontent></button>
+              <option value="auto">自動</option>
+              <option value="v1"><span>v1 - <strong>段階式</strong></span></option>
+              <option value="v2"><span>v2 - <strong>べき乗式</strong></span></option>
+            </select>
+          </div>
           <div class="points-preview">
-            <output for="entries" aria-labelledby="points-title">
+            <output for="entries point-formula history-select" aria-labelledby="points-title">
               <span class="points-heading">
                 <span id="points-title">成績ポイント</span>
                 <span id="itm-count" hidden></span>

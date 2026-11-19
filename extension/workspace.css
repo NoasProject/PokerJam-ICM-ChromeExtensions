@@ -259,6 +259,29 @@ th:nth-child(n+2), td:nth-child(n+2) { text-align: right; }
 }
 small { display: block; margin-top: 5px; }
 .history-actions small { margin-top: 0; }
+.point-formula-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+.point-formula-setting label { margin: 0; }
+#point-formula { width: 10rem; }
+@supports (appearance: base-select) {
+  #point-formula,
+  #point-formula::picker(select) {
+    appearance: base-select;
+  }
+  #point-formula::picker(select) {
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  #point-formula option { padding: 8px 10px; }
+  #point-formula option:is(:hover, :focus-visible) { background: var(--raised, var(--accent-soft)); }
+}
 .points-preview {
   margin-top: 16px;
   border: 1px solid var(--line);

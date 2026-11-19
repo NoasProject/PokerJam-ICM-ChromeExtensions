@@ -1,6 +1,42 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculatePayouts, summarizePoints } from "../extension/payouts.mjs";
+import { calculatePayouts, pointFormulaForTimestamp, resolvePointFormula, summarizePoints } from "../extension/payouts.mjs";
+
+test("selects v2 starting November 19 at 08:00 JST in the hand's time zone", () => {
+  assert.equal(pointFormulaForTimestamp("2026/11/19 07:59:59 JST"), "v1");
+  assert.equal(pointFormulaForTimestamp("2026/11/19 08:00:00 JST"), "v2");
+  assert.equal(pointFormulaForTimestamp("2026/11/19 08:00:00"), "v2");
+  assert.equal(pointFormulaForTimestamp("2026/11/18 17:59:59 ET"), "v1");
+  assert.equal(pointFormulaForTimestamp("2026/11/18 18:00:00 ET"), "v2");
+  assert.equal(pointFormulaForTimestamp("2026/11/18 23:00:00 UTC"), "v2");
+});
+
+test("treats missing, invalid and unrecognized hand times as unknown", () => {
+  assert.equal(pointFormulaForTimestamp(), null);
+  assert.equal(pointFormulaForTimestamp("2026/02/30 08:00:00 JST"), null);
+  assert.equal(pointFormulaForTimestamp("2026/11/19 08:00:00 CST"), null);
+});
+
+test("applies the latest formula without a timestamp even with a manual v1 preference", () => {
+  const oldHand = pointFormulaForTimestamp("2026/11/18 17:59:59 ET");
+  const newHand = pointFormulaForTimestamp("2026/11/18 18:00:00 ET");
+  const undatedHand = pointFormulaForTimestamp();
+  assert.equal(resolvePointFormula(oldHand, "auto"), "v1");
+  assert.equal(resolvePointFormula(oldHand, "v2"), "v2");
+  assert.equal(resolvePointFormula(newHand, "v1"), "v1");
+  assert.equal(resolvePointFormula(undatedHand, "auto"), "v2");
+  assert.equal(resolvePointFormula(undatedHand, "v1"), "v2");
+});
+
+test("uses the v1 scale and equally spaced prizes down to 20 percent", () => {
+  assert.deepEqual(summarizePoints(32, "v1"), { paidPlaces: 5, first: 140, second: 112, last: 28 });
+  assert.deepEqual(calculatePayouts(32, 32, "v1"), [700, 560, 420, 280, 140]);
+  assert.deepEqual(calculatePayouts(32, 4, "v1"), [700, 560, 420, 280]);
+  assert.deepEqual(calculatePayouts(6, 2, "v1"), [500]);
+  assert.deepEqual(calculatePayouts(7, 2, "v1"), [500, 100]);
+  assert.deepEqual(calculatePayouts(19, 19, "v1"), [550, 330, 110]);
+  assert.equal(summarizePoints(20, "v1").first, 120);
+});
 
 test("summarizes first, second and last paid place, including one- and two-place payouts", () => {
   assert.deepEqual(summarizePoints(6), { paidPlaces: 1, first: 37, second: null, last: 37 });

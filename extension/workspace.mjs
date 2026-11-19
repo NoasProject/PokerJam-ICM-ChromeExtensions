@@ -1,5 +1,5 @@
 import { parseHandHistories } from "./hand-history.mjs";
-import { calculatePayouts, summarizePoints } from "./payouts.mjs";
+import { calculatePayouts, pointFormulaForTimestamp, resolvePointFormula, summarizePoints } from "./payouts.mjs";
 import { estimateFieldAverageBB } from "./field-stacks.mjs";
 import { checkForReleaseUpdate, rememberCheckedRelease } from "./release-updates.mjs";
 import { isZenoTab } from "./zeno.mjs";
@@ -26,6 +26,7 @@ const remainingInput = byId("remaining");
 const finalTableInput = byId("final-table");
 const remainingField = byId("remaining-field");
 const finalTableCount = byId("final-table-count");
+const pointFormulaSelect = byId("point-formula");
 const playerCountInputs = [remainingInput, entriesInput];
 const lastPlayerCountValues = new Map();
 const averagePreview = byId("estimated-average");
@@ -45,6 +46,7 @@ const ranks = "23456789TJQKA";
 let hand = null;
 let histories = [];
 let historyText = "";
+let pointFormulaPreference = "auto";
 let sending = false;
 let importingHistory = false;
 let solverState;
@@ -100,9 +102,10 @@ checkUpdate.addEventListener("click", async () => {
   }
 });
 
-function renderPoints(entries) {
-  const points = Number.isSafeInteger(entries) && entries >= 2 ? summarizePoints(entries) : null;
+function renderPoints(entries, formula, forcedLatest) {
+  const points = Number.isSafeInteger(entries) && entries >= 2 ? summarizePoints(entries, formula) : null;
   const values = {
+    "points-title": `成績ポイント（${formula}${forcedLatest ? "・日時不明" : ""}）`,
     "first-points": points ? `${pointFormat.format(points.first)} pt` : "—",
     "second-points": points?.second != null ? `${pointFormat.format(points.second)} pt` : "—",
     "last-points": points ? `${pointFormat.format(points.last)} pt` : "—",
@@ -124,6 +127,11 @@ function updateSettings() {
   const entries = entriesInput.value ? Number(entriesInput.value) : NaN;
   const seated = hand?.players.length;
   const selectedHistory = histories[historySelect.selectedIndex];
+  const detectedFormula = pointFormulaForTimestamp(selectedHistory?.timestamp);
+  const forcedLatest = Boolean(selectedHistory && !detectedFormula);
+  const formula = resolvePointFormula(detectedFormula, pointFormulaPreference);
+  pointFormulaSelect.disabled = busy || forcedLatest;
+  pointFormulaSelect.value = forcedLatest ? formula : pointFormulaPreference;
   let finalTableMessage = "";
   if (finalTable) {
     const displayedCount = selectedHistory?.headsUp ? 2 : seated;
@@ -156,7 +164,7 @@ function updateSettings() {
   const countsValid = Number.isSafeInteger(entries) && Number.isSafeInteger(remaining) &&
     remaining >= 2 && entries >= remaining && !error;
   const canUseIcm = seated >= 3;
-  renderPoints(entries);
+  renderPoints(entries, formula, forcedLatest);
 
   const field = mid && countsValid && canUseIcm
     ? { entries, remaining, averageBB: estimateFieldAverageBB(hand.players, remaining) }
@@ -167,7 +175,7 @@ function updateSettings() {
   }
   averagePreview.hidden = !field;
   send.disabled = busy || importingHistory || !canUseIcm || !countsValid;
-  return { entries, remaining, field };
+  return { entries, remaining, field, formula };
 }
 
 function renderHand() {
@@ -263,6 +271,7 @@ function readHistory(text, selectedSourceIndex) {
 function saveDraft() {
   const values = Object.fromEntries(playerCountInputs.map(({ id, value }) => [id, value]));
   values.history = historyText;
+  values[pointFormulaSelect.id] = pointFormulaPreference;
   // Drafts saved before sorting used the hand's position in the original text.
   const selectedHistoryIndex = histories[historySelect.selectedIndex]?.sourceIndex ?? -1;
   chrome.storage.session.set({ draft: { values, selectedHistoryIndex } }).catch((error) => {
@@ -405,6 +414,7 @@ document.addEventListener("drop", (event) => {
 });
 
 settings.addEventListener("input", (event) => {
+  if (event.target === pointFormulaSelect) pointFormulaPreference = pointFormulaSelect.value;
   clearSolverStatus();
   if (event.target === finalTableInput) saveFinalTablePreference();
   saveDraft();
@@ -412,12 +422,12 @@ settings.addEventListener("input", (event) => {
 
 settings.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const { entries, remaining, field } = updateSettings();
+  const { entries, remaining, field, formula } = updateSettings();
   if (send.disabled || sending) return;
 
   sending = true;
   try {
-    const payouts = calculatePayouts(entries, usingGtoWizard ? entries : remaining);
+    const payouts = calculatePayouts(entries, usingGtoWizard ? entries : remaining, formula);
     const solverHand = {
       smallBlindBB: hand.smallBlindBB,
       ante: { type: hand.ante.type, bb: hand.ante.bb },
@@ -456,6 +466,8 @@ async function restoreWorkspace() {
     finalTableInput.checked = (finalTable ?? draft?.finalTable) === true;
     if (finalTable === undefined && typeof draft?.finalTable === "boolean") saveFinalTablePreference();
     if (draft) {
+      const savedFormula = draft.values[pointFormulaSelect.id];
+      if (savedFormula === "v1" || savedFormula === "v2") pointFormulaPreference = savedFormula;
       for (const input of playerCountInputs) {
         input.value = draft.values[input.id] ?? input.value;
         // Older drafts may contain exponent notation from the number input.
