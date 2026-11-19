@@ -1,29 +1,26 @@
 const DOLLARS_PER_POINT = 5;
 
-// Scale factors multiplied by 1,000 so the formula works in tenths of a point.
-const FIRST_PLACE_TENTHS = [
-  [9, 1000],
-  [19, 1100],
-  [29, 1200],
-  [39, 1400],
-  [49, 1600],
-  [69, 1700],
-  [99, 1800],
-  [Infinity, 2000],
-];
-
 function pointStructure(entries) {
   const paidPlaces = Math.ceil(entries * 0.15);
-  const [, firstPlaceTenths] = FIRST_PLACE_TENTHS.find(([max]) => entries <= max);
-  return { paidPlaces, firstPlaceTenths };
+  const firstPlacePoints = 100 * Math.min(2, 2 * (entries / 100) ** 0.6);
+  return { paidPlaces, firstPlacePoints };
+}
+
+function pointTenths(firstPlacePoints, paidPlaces, place) {
+  // Express the rank factors as percentages with a shared denominator.
+  const steps = Math.max(1, paidPlaces - 2);
+  const rankWeight = place === 1 ? 100 * steps : 60 * steps - 30 * (place - 2);
+  return Math.round(firstPlacePoints * rankWeight / (10 * steps));
 }
 
 export function summarizePoints(entries) {
-  const { paidPlaces, firstPlaceTenths } = pointStructure(entries);
-  const first = firstPlaceTenths / 10;
-  const last = paidPlaces === 1 ? first : firstPlaceTenths / 50;
-  const increase = paidPlaces === 1 ? null : (first - last) / (paidPlaces - 1);
-  return { paidPlaces, first, increase, last };
+  const { paidPlaces, firstPlacePoints } = pointStructure(entries);
+  return {
+    paidPlaces,
+    first: pointTenths(firstPlacePoints, paidPlaces, 1) / 10,
+    second: paidPlaces >= 2 ? pointTenths(firstPlacePoints, paidPlaces, 2) / 10 : null,
+    last: pointTenths(firstPlacePoints, paidPlaces, paidPlaces) / 10,
+  };
 }
 
 export function calculatePayouts(entries, remaining) {
@@ -32,11 +29,9 @@ export function calculatePayouts(entries, remaining) {
     throw new Error("参加人数と残り人数を入力してください。残り人数は2人以上、参加人数以下です。");
   }
 
-  const { paidPlaces, firstPlaceTenths } = pointStructure(entries);
-  const rankSteps = Math.max(1, paidPlaces - 1);
+  const { paidPlaces, firstPlacePoints } = pointStructure(entries);
   return Array.from({ length: Math.min(paidPlaces, remaining) }, (_, index) => {
-    const rankWeight = 5 * rankSteps - 4 * index;
-    const pointTenths = Math.round(firstPlaceTenths * rankWeight / (5 * rankSteps));
-    return Math.ceil(pointTenths * DOLLARS_PER_POINT / 10);
+    const points = pointTenths(firstPlacePoints, paidPlaces, index + 1);
+    return Math.ceil(points * DOLLARS_PER_POINT / 10);
   });
 }

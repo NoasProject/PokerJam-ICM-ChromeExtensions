@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PokerJam ICM - ZenoSolver",
   "description": "POKER Jamのトーナメント履歴からZenoSolverとGTO WizardのICMフォームにテーブル設定を入力します。",
-  "version": "0.0.9",
+  "version": "1.0.1",
   "minimum_chrome_version": "120",
   "icons": {
     "16": "icons/icon-16.png",

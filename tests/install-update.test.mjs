@@ -4,8 +4,10 @@ import { test } from "node:test";
 import { crc32, deflateRawSync } from "node:zlib";
 import { installUpdate } from "../extension/install-update.mjs";
 
-const installed = JSON.parse(await readFile(new URL("../extension/manifest.json", import.meta.url), "utf8"));
-const release = { version: "0.0.99", tag: "v0.0.99" };
+const manifest = JSON.parse(await readFile(new URL("../extension/manifest.json", import.meta.url), "utf8"));
+const installed = { ...manifest, version: "0.0.9" };
+const release = { version: "1.0.1", tag: "v1.0.1" };
+const later = { version: "1.0.2", tag: "v1.0.2" };
 const sha = "d7f4dea2a6fbf3cf3f83bb943038d3d3d5961324";
 const repository = "NoasProject/PokerJam-ICM-ChromeExtensions";
 const archiveRoot = `PokerJam-ICM-ChromeExtensions-${sha}`;
@@ -118,7 +120,6 @@ test("switches the root manifest to the staged release and supports updating aga
   ]);
   assert.equal(entries.size, 2);
 
-  const later = { version: "0.0.100", tag: "v0.0.100" };
   await installUpdate(folder, later, next, async (name) => entries.get(name), fakeRelease(later.version).fetcher);
   assert.equal(JSON.parse(entries.get("manifest.json")).version, later.version);
 });
@@ -134,7 +135,6 @@ test("accepts the parent folder and returns the immediate extension folder for r
   assert.deepEqual([...parent.keys()], ["extension", "README.md"]);
   assert.equal(parent.get("README.md"), "readme");
 
-  const later = { version: "0.0.100", tag: "v0.0.100" };
   await installUpdate(folder, later, next, fetchPackage, fakeRelease(later.version).fetcher);
   assert.equal(JSON.parse(entries.get("manifest.json")).version, later.version);
 });

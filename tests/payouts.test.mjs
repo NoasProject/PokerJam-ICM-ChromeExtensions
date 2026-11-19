@@ -2,35 +2,37 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { calculatePayouts, summarizePoints } from "../extension/payouts.mjs";
 
-test("summarizes the full field's points, including single-place payouts", () => {
-  const points = summarizePoints(42);
-  assert.deepEqual(points, { paidPlaces: 7, first: 160, increase: 128 / 6, last: 32 });
-  assert.deepEqual(summarizePoints(19), { paidPlaces: 3, first: 110, increase: 44, last: 22 });
-  assert.deepEqual(summarizePoints(6), { paidPlaces: 1, first: 100, increase: null, last: 100 });
+test("summarizes first, second and last paid place, including one- and two-place payouts", () => {
+  assert.deepEqual(summarizePoints(6), { paidPlaces: 1, first: 37, second: null, last: 37 });
+  assert.deepEqual(summarizePoints(7), { paidPlaces: 2, first: 40.6, second: 24.3, last: 24.3 });
+  assert.deepEqual(summarizePoints(32), { paidPlaces: 5, first: 101, second: 60.6, last: 30.3 });
 });
 
-test("converts points at a fixed $5 rate and rounds dollars up", () => {
-  assert.deepEqual(calculatePayouts(42, 9), [800, 694, 587, 480, 374, 267, 160]);
-  assert.deepEqual(calculatePayouts(19, 9), [550, 330, 110]);
-  assert.equal(calculatePayouts(9, 9)[1], 100);
+test("uses rank factors 1, 0.6, 0.5, 0.4 and 0.3 for five paid places", () => {
+  assert.deepEqual(calculatePayouts(32, 32), [505, 303, 253, 202, 152]);
+  assert.deepEqual(calculatePayouts(19, 19), [369, 222, 111]);
+});
+
+test("rounds points to tenths before converting at $5 per point and rounding dollars up", () => {
+  assert.deepEqual(summarizePoints(30), { paidPlaces: 5, first: 97.1, second: 58.3, last: 29.1 });
+  assert.deepEqual(calculatePayouts(30, 30), [486, 292, 243, 194, 146]);
 });
 
 test("preserves the original payout amounts when paid positions have been eliminated", () => {
-  assert.deepEqual(calculatePayouts(42, 3), [800, 694, 587]);
-  assert.deepEqual(calculatePayouts(6, 2), [500]);
-  assert.deepEqual(calculatePayouts(9, 2), [500, 100]);
+  assert.deepEqual(calculatePayouts(32, 4), [505, 303, 253, 202]);
+  assert.deepEqual(calculatePayouts(6, 2), [185]);
+  assert.deepEqual(calculatePayouts(7, 2), [203, 122]);
 });
 
-test("uses the scale threshold for every entry-count bracket", () => {
+test("applies the scale formula and caps it at 100 entries", () => {
   for (const [entries, first] of [
-    [9, 500], [10, 550], [19, 550], [20, 600], [29, 600], [30, 700],
-    [39, 700], [40, 800], [49, 800], [50, 850], [69, 850], [70, 900],
-    [99, 900], [100, 1000], [101, 1000],
+    [10, 251], [20, 381], [30, 486], [50, 660], [70, 808],
+    [99, 994], [100, 1000], [101, 1000], [4096, 1000],
   ]) {
     const payouts = calculatePayouts(entries, entries);
     assert.equal(payouts[0], first);
     assert.equal(payouts.length, Math.ceil(entries * 0.15));
-    assert.equal(payouts.at(-1), first / 5);
+    if (entries >= 100) assert.equal(payouts.at(-1), 300);
   }
 });
 

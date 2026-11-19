@@ -104,7 +104,7 @@ function renderPoints(entries) {
   const points = Number.isSafeInteger(entries) && entries >= 2 ? summarizePoints(entries) : null;
   const values = {
     "first-points": points ? `${pointFormat.format(points.first)} pt` : "—",
-    "rank-increase": points?.increase != null ? `+${pointFormat.format(points.increase)} pt` : "—",
+    "second-points": points?.second != null ? `${pointFormat.format(points.second)} pt` : "—",
     "last-points": points ? `${pointFormat.format(points.last)} pt` : "—",
     "itm-count": points ? `ITM ${chipFormat.format(points.paidPlaces)}人` : "",
   };
