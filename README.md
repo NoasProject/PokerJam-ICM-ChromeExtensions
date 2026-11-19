@@ -57,7 +57,7 @@ ZenoSolverの詳細設定では、サイズを「標準（スタック別）」�
 どちらの計算式も、入賞枠は総エントリー数の15％を切り上げて求めます。
 
 - **v1（段階式）** はエントリー数の区分ごとに1位のポイントが決まり、複数の入賞枠がある場合は入賞最下位が1位の20％になるよう等間隔に配分します。[v1の出典（Waitinglist公式noteの初版）](https://note.com/waitinglist/n/n3156416d16ae) · [v1の実装（v0.0.9）](https://github.com/NoasProject/PokerJam-ICM-ChromeExtensions/blob/v0.0.9/extension/payouts.mjs)
-- **v2（べき乗式）** は100点に規模係数 `min(2, 2 × (総エントリー数 / 100)^0.6)` と順位係数を掛けます。順位係数は1位が1.0、2位が0.6で、3位以降は2位の0.6から入賞最下位の0.3まで等間隔で下がります。[v2の出典（Waitinglist公式noteの11月19日更新）](https://note.com/waitinglist/n/n3156416d16ae)
+- **v2（べき乗式）** は100点に規模係数 `min(2, 2 × (総エントリー数 / 100)^0.6)` と順位係数を掛けます。順位係数は1位が1.0、2位が0.6で、3位以降は2位の0.6から入賞最下位の0.3まで等間隔で下がります。[v2の出典（Waitinglist公式noteの11月19日更新）](https://note.com/waitinglist/n/n3156416d16ae) · [v2の計算式（2026年11月19日版のPDF）](docs/20261119_v2.pdf)
 
 公式noteは同じURLで更新され、現在はv2の計算式が掲載されています。
 
